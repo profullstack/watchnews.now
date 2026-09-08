@@ -771,10 +771,46 @@ export async function playlistCount(userId) {
  * that genuinely only need one -- but anything rendering the reader's providers,
  * or deciding which line to charge a stream to, wants all of them.
  */
+/**
+ * Move one of this reader's lists to the front.
+ *
+ * `/settings` renders its full management card -- the address, the name, the
+ * sharing switch, the player links -- for `getPlaylist`, which is
+ * `order by position, id limit 1`. Every other line gets a row with a Remove
+ * button and nothing else. Before this existed there was no way to change which
+ * line that was, so a reader whose real subscription was added second could
+ * only manage it by deleting the first one.
+ *
+ * Scoped by BOTH id and user_id. `where user_id = ${userId}` alone is the
+ * fan-out this table has already been bitten by once: with the one-row-per-user
+ * UNIQUE gone, an unscoped update writes every list the reader has.
+ */
+export async function makePlaylistPrimary({ userId, playlistId }) {
+  const [row] = await sql`
+    update user_playlists set position = coalesce(
+      (select min(position) - 1 from user_playlists where user_id = ${userId}), 0
+    )
+    where id = ${playlistId} and user_id = ${userId}
+    returning id, user_id, label, position
+  `;
+  return row ?? null;
+}
+
 export async function getPlaylists(userId) {
+  /*
+   * Whole rows, because settings now draws a full card per line.
+   *
+   * That includes `source_url`, which is sealed in the column and must be masked
+   * before it reaches a view -- the settings handler does that and builds its own
+   * shape, so no caller passes these rows to JSX. The alternative, a second query
+   * per line to fetch what the first deliberately left out, is how a page ends up
+   * doing six round trips to render five cards.
+   */
   return sql`
     select id, user_id, label, position, managed, channel_count,
-           last_synced_at, last_error, created_at
+           last_synced_at, last_error, created_at, source_url,
+           line_connections, panel_connections, panel_active, panel_status,
+           shared, share_audience, shared_label
     from user_playlists
     where user_id = ${userId}
     order by position, id
@@ -894,10 +930,24 @@ export async function reorderPlaylists({ userId, orderedIds }) {
  * getPlaylist's `select *`: the row carries the sealed source URL and there is
  * no reason for that to travel on a request that only wants a count.
  */
-export async function lineOf(userId) {
+export async function lineOf(userId, { playlistId = null } = {}) {
+  /*
+   * One line's numbers, not the account's.
+   *
+   * This read had no id and no ordering, so with two lists it returned whichever
+   * row the planner happened to hand back first -- and the stream allowance drawn
+   * from it belonged to a different subscription than the one being played. The
+   * coalesce keeps the single-list meaning (the first in the reader's order) while
+   * letting a caller that knows which line it is asking about say so.
+   */
   const [row] = await sql`
-    select line_connections, panel_connections
-    from user_playlists where user_id = ${userId}
+    select id, line_connections, panel_connections
+    from user_playlists
+    where user_id = ${userId}
+      and id = coalesce(
+        ${playlistId}::bigint,
+        (select id from user_playlists where user_id = ${userId} order by position, id limit 1)
+      )
   `;
   return row ?? null;
 }
@@ -908,11 +958,24 @@ export async function lineOf(userId) {
  * Null clears it, meaning "whatever my provider reports". The range check lives
  * in the schema; the route has already clamped to what the picker offers.
  */
-export async function setLineConnections({ userId, connections }) {
+export async function setLineConnections({ userId, playlistId = null, connections }) {
+  /*
+   * One line's cap, not every line's.
+   *
+   * `where user_id` alone was an account-wide UPDATE: setting four on the line
+   * that permits four also set four on the one that permits one, and returned an
+   * arbitrary row as confirmation. Since a provider suspends a line for exceeding
+   * what it sold, that is the one write here whose fan-out costs the reader a
+   * subscription rather than a preference.
+   */
   const [row] = await sql`
     update user_playlists set line_connections = ${connections ?? null}
     where user_id = ${userId}
-    returning line_connections, panel_connections
+      and id = coalesce(
+        ${playlistId}::bigint,
+        (select id from user_playlists where user_id = ${userId} order by position, id limit 1)
+      )
+    returning id, line_connections, panel_connections
   `;
   return row ?? null;
 }
@@ -1030,7 +1093,7 @@ export async function markSharedChannelChecked({ channelId, live, note }) {
  */
 export const SHARE_AUDIENCES = ['none', 'friends', 'everyone'];
 
-export async function setPlaylistSharing({ userId, audience, label = null }) {
+export async function setPlaylistSharing({ userId, playlistId = null, audience, label = null }) {
   /*
    * An unrecognised audience closes the list rather than opening it.
    *
@@ -1056,7 +1119,21 @@ export async function setPlaylistSharing({ userId, audience, label = null }) {
       -- change the label". The caller decides by passing one or not.
       shared_label = ${label === null ? null : String(label).slice(0, 80)}
     where user_id = ${userId}
-    returning shared, share_audience, shared_at, shared_label
+      -- Our own line is never openable, and the refusal lives HERE as well as in
+      -- the route. A route check can be routed around by an old page or a hand
+      -- made post; this cannot, and reselling the line we provisioned to people
+      -- who did not buy a pass is the one mistake in this file that costs money.
+      and not managed
+      -- One list, not the account. Without this the UPDATE opened every line the
+      -- reader had -- including the managed one above, which is how the guard in
+      -- the route was being satisfied and defeated in the same request.
+      and id = coalesce(
+        ${playlistId}::bigint,
+        (select id from user_playlists
+          where user_id = ${userId} and not managed
+          order by position, id limit 1)
+      )
+    returning id, shared, share_audience, shared_at, shared_label
   `;
   return row ?? null;
 }
@@ -3784,12 +3861,37 @@ export async function shareCandidates(userId) {
  * not exist cannot be written -- the foreign key says so -- which keeps a mistyped
  * id from silently becoming a row that matches nothing.
  */
-export async function setPlaylistShareGrant({ userId, audienceUserId, allowed }) {
+export async function setPlaylistShareGrant({
+  userId,
+  playlistId = null,
+  audienceUserId,
+  allowed,
+}) {
   if (!userId || !audienceUserId || userId === audienceUserId) return false;
+  /*
+   * Naming somebody on ONE line.
+   *
+   * The insert selected every row the reader had, so naming a friend on the list
+   * they asked about also named them on every other list -- and the managed one,
+   * which must never be granted to anybody. `returning` then handed back a single
+   * row, so the fan-out was invisible to the caller and to the tests.
+   *
+   * Both statements carry the same scoping, because a grant that can be created
+   * on one row and revoked from all of them (or the reverse) is worse than either
+   * behaviour on its own.
+   */
   if (allowed) {
     const [row] = await sql`
       insert into playlist_share_grants (playlist_id, audience_user_id)
-      select p.id, ${audienceUserId}::uuid from user_playlists p where p.user_id = ${userId}
+      select p.id, ${audienceUserId}::uuid from user_playlists p
+      where p.user_id = ${userId}
+        and not p.managed
+        and p.id = coalesce(
+          ${playlistId}::bigint,
+          (select id from user_playlists
+            where user_id = ${userId} and not managed
+            order by position, id limit 1)
+        )
       on conflict do nothing
       returning audience_user_id
     `;
@@ -3799,6 +3901,12 @@ export async function setPlaylistShareGrant({ userId, audienceUserId, allowed })
     delete from playlist_share_grants g
     using user_playlists p
     where g.playlist_id = p.id and p.user_id = ${userId}
+      and p.id = coalesce(
+        ${playlistId}::bigint,
+        (select id from user_playlists
+          where user_id = ${userId} and not managed
+          order by position, id limit 1)
+      )
       and g.audience_user_id = ${audienceUserId}::uuid
   `;
   return true;
