@@ -5,8 +5,9 @@ import { describe, expect, test } from 'bun:test';
 // the assignment. It needs to be set, not to connect.
 process.env.DATABASE_URL = 'postgres://localhost:5432/unused';
 const { CATALOG_ADAPTERS } = await import('../packages/sports/src/catalog.js');
-const { CATEGORY_SECTION, collect, decodeEntities, INDEPENDENT, outletOf, outletSlug, SECTIONS } =
-  await import('../packages/sports/src/brisk.js');
+const { CATEGORY_SECTION, collect, INDEPENDENT, outletOf, outletSlug, SECTIONS } = await import(
+  '../packages/sports/src/brisk.js'
+);
 const { outletSlug: nichedbSlug } = await import('../packages/sports/src/nichedb.js');
 
 const story = (over = {}) => ({
@@ -257,45 +258,24 @@ describe('the brisk provider', () => {
   });
 
   /*
-   * Nothing between the publisher's feed and this row decodes these, and JSX
-   * escapes on the way out -- so an undecoded title reaches the reader as the
-   * entity itself. Measured on a live pass: 7 of 76 titles, 17 of 75 summaries.
+   * The decoder itself is covered in entities.test.js; these are the two places
+   * this adapter has to remember to call it.
    */
   describe('character references', () => {
     test('a title reaches the page as text, not as entities', () => {
       const { events } = run([
         story({ title: 'it&rsquo;s crazy&hellip; a &ldquo;crashout&rdquo;' }),
       ]);
-      expect(events[0].name).toBe('it’s crazy… a “crashout”');
+      expect(events[0].name).toBe('it\u2019s crazy\u2026 a \u201ccrashout\u201d');
     });
 
     test('summaries are decoded too', () => {
       const { events } = run([story({ description: 'Tom &amp; Jerry &#8212; again' })]);
-      expect(events[0].summary).toBe('Tom & Jerry — again');
-    });
-
-    test('numeric and hex references both resolve', () => {
-      expect(decodeEntities('caf&#233; &#x2014; open')).toBe('café — open');
-    });
-
-    /*
-     * &amp; is resolved last. Decoding it first turns a double-encoded
-     * `&amp;#39;` into an apostrophe that was never in the title.
-     */
-    test('a literal ampersand is not decoded twice into somebody else markup', () => {
-      expect(decodeEntities('Fish &amp;#39;n chips')).toBe('Fish &#39;n chips');
-      expect(decodeEntities('A &amp;lt;b&amp;gt; tag')).toBe('A &lt;b&gt; tag');
-    });
-
-    test('an unknown or malformed reference is left exactly as written', () => {
-      expect(decodeEntities('50% &off; &#; &notareal; x')).toBe('50% &off; &#; &notareal; x');
-      // A lone surrogate would corrupt the string, so it stays as text.
-      expect(decodeEntities('&#xD800;')).toBe('&#xD800;');
+      expect(events[0].summary).toBe('Tom & Jerry \u2014 again');
     });
 
     test('a title that is nothing but whitespace is not published as a blank card', () => {
       expect(run([story({ title: '&nbsp;' })]).events).toHaveLength(0);
-      expect(decodeEntities(null)).toBeNull();
     });
   });
 

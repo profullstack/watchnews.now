@@ -107,9 +107,9 @@ describe('the watchnews brand', () => {
     expect(href.collection('x').startsWith(`/${brand.paths.collection}/`)).toBe(true);
   });
 
-  test('runs both news providers, and signposts the categories it does not carry', async () => {
+  test('runs every news provider, and signposts the categories it does not carry', async () => {
     const { brand } = await load('watchnews');
-    expect(brand.providers).toEqual(['nichedb', 'brisk']);
+    expect(brand.providers).toEqual(['nichedb', 'brisk', 'rssamplifier']);
     // Sport here is a news desk, not fixtures — tipoffwatch does those properly.
     expect(brand.elsewhere.sports).toBe('https://tipoffwatch.com');
   });

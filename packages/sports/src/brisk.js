@@ -40,8 +40,9 @@
  * in `syncBrandCatalog`.
  */
 
+import { decodeEntities } from './entities.js';
 import { getJson } from './http.js';
-import { keyFor, slugify } from './slug.js';
+import { boundedKeyFor, keyFor, slugify } from './slug.js';
 
 const BASE = 'https://brisk.news/api/news';
 const PROVIDER = 'brisk';
@@ -136,90 +137,6 @@ const FEED_URL = /\/comments\/|\/feeds?\/|\.(?:xml|rss|atom)(?:$|\?)/i;
  * image gets none.
  */
 const SCREENSHOT = /^https?:\/\/[^/]*brisk\.news\/api\/screenshot/i;
-
-/** The named references that actually turn up in this corpus, plus the big five. */
-const NAMED = {
-  amp: '&',
-  lt: '<',
-  gt: '>',
-  quot: '"',
-  apos: "'",
-  nbsp: ' ',
-  hellip: '…',
-  mdash: '—',
-  ndash: '–',
-  lsquo: '‘',
-  rsquo: '’',
-  ldquo: '“',
-  rdquo: '”',
-};
-
-/**
- * Decode the character references a feed title arrives with.
- *
- * Nothing between the publisher's feed and this row decodes them, so a Tumblr
- * post reaches the page as `it&rsquo;s crazy` -- and JSX escapes on the way out,
- * so the reader sees the entity itself rather than an apostrophe. Measured
- * 2026-09-09: 7 of 76 titles and 17 of 75 summaries in one pass.
- *
- * `&amp;` is resolved LAST, after the numeric pass. Doing it first turns a
- * double-encoded `&amp;#39;` into `&#39;` and then into an apostrophe that was
- * never in the title -- decoding one layer too many is how a feed's literal
- * "&amp;" becomes somebody else's markup.
- */
-export function decodeEntities(text) {
-  if (text == null) return null;
-  const s = String(text)
-    .replace(/&#(\d{1,7});/g, (m, d) => safeChar(Number.parseInt(d, 10), m))
-    .replace(/&#x([0-9a-f]{1,6});/gi, (m, h) => safeChar(Number.parseInt(h, 16), m))
-    .replace(/&([a-z]+);/gi, (m, n) => {
-      const key = n.toLowerCase();
-      return key === 'amp' ? m : (NAMED[key] ?? m);
-    })
-    .replace(/&amp;/gi, '&')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return s || null;
-}
-
-/** A code point outside the usable range is left as written rather than guessed at. */
-function safeChar(code, original) {
-  if (!Number.isFinite(code) || code <= 0 || code > 0x10ffff) return original;
-  // Lone surrogates are unpaired halves and would corrupt the string.
-  if (code >= 0xd800 && code <= 0xdfff) return original;
-  try {
-    return String.fromCodePoint(code);
-  } catch {
-    return original;
-  }
-}
-
-/**
- * A story's provider key, bounded.
- *
- * Every other adapter here keys an event on a short upstream id. brisk's `uuid`
- * for a small-web row IS the article URL, so this is the only key in the
- * codebase whose length is somebody else's decision. `provider_key` is `text`,
- * but the UNIQUE (provider, provider_key) btree behind it is not: a row wider
- * than roughly 2700 bytes is rejected outright, and that would abort the whole
- * upsert batch rather than drop the one absurd URL. Truncating alone would make
- * two long URLs sharing a prefix collide into one story, so what is dropped is
- * replaced by a hash of the whole thing.
- */
-const KEY_MAX = 200;
-
-function storyKey(url) {
-  const slug = keyFor(PROVIDER, 'story', url);
-  if (slug.length <= KEY_MAX) return slug;
-  // FNV-1a over the full URL: enough to separate two shared prefixes, and no
-  // reason to reach for a crypto hash to do it.
-  let h = 0x811c9dc5;
-  for (let i = 0; i < url.length; i++) {
-    h ^= url.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return `${slug.slice(0, KEY_MAX)}-${h.toString(36)}`;
-}
 
 /**
  * The publisher, as {key, name}, from the delivery host.
@@ -358,7 +275,7 @@ export function collect(items, { desks, outlets, events, seen = new Set(), secti
       provider: PROVIDER,
       // The article URL is brisk's own identity for an rss row (its `uuid` is
       // the URL), and it survives a re-poll where a row id might not.
-      providerKey: storyKey(it.url),
+      providerKey: boundedKeyFor([PROVIDER, 'story', it.url]),
       category: desk,
       subjectKey: outletKey,
       kind: 'story',

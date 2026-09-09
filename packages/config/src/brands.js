@@ -400,10 +400,13 @@ const BRANDS = {
         { name: 'the newsrooms’ own feeds', url: 'https://nichedb.dev/c/news' },
         { name: 'GDELT', url: 'https://www.gdeltproject.org' },
         { name: 'the independent web', url: 'https://brisk.news' },
+        { name: 'an open newsroom directory', url: 'https://rssamplifier.com/news' },
       ],
-      note: 'Collected by nichedb.dev and brisk.news. Not affiliated with any publisher.',
+      note:
+        'Collected by nichedb.dev, brisk.news and rssamplifier.com. ' +
+        'Not affiliated with any publisher.',
     },
-    providers: ['nichedb', 'brisk'],
+    providers: ['nichedb', 'brisk', 'rssamplifier'],
     elsewhere: {
       sports: 'https://tipoffwatch.com',
       'film and tv': 'https://genrewatch.com',
