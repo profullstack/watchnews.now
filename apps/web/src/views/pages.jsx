@@ -1094,15 +1094,20 @@ export const LeaguePage = ({
         </ul>
       )}
 
-      <h2>Upcoming fixtures</h2>
+      <h2>Upcoming {brand.words.events}</h2>
       {/* Most leagues are out of season most of the year, which is not the same as
-        broken. Say which one it is, and keep the follow controls useful either way. */}
+        broken. Say which one it is, and keep the follow controls useful either way.
+        On a brand whose events are already published there is no season to be
+        between and nothing to schedule, so it says so in that brand's own words
+        rather than inviting the reader to wait for a fixture. */}
       <EventList
         events={events}
         emptyText={
-          teams.length > 0
-            ? 'Nothing scheduled yet — this competition is between seasons. Follow its teams now and you will be told when they play.'
-            : 'No fixtures scheduled.'
+          brand.eventsArePast
+            ? brand.copy.soonEmpty
+            : teams.length > 0
+              ? 'Nothing scheduled yet — this competition is between seasons. Follow its teams now and you will be told when they play.'
+              : 'No fixtures scheduled.'
         }
       />
 
@@ -1702,6 +1707,53 @@ const Side = ({ name, slug, logo, score, record, showScore, role, favorite = fal
 );
 
 /**
+ * A published story, told as a story.
+ *
+ * The scoreboard above answers "who is playing and what is the score", which an
+ * article has no answer to. This answers the three things a reader of one
+ * actually wants: what happened, who reported it, and where to go and read it.
+ *
+ * The headline is the h1. The event page has never had one -- the scoreboard was
+ * the title, and two crests are not a heading -- so on a story page the document
+ * outline started at h2 and the article's own headline was markup-invisible.
+ *
+ * The link out is rel="noopener" and carries the outlet's name rather than
+ * "Read more", because a reader deserves to know whose site the click leaves for
+ * before they take it.
+ */
+const LeadStory = ({ event }) => (
+  <article class="lead-story">
+    <h1>{event.name}</h1>
+    <p class="byline">
+      {event.home_slug ? (
+        <a href={href.participant(event.home_slug)}>{event.home_name}</a>
+      ) : event.home_name ? (
+        <span>{event.home_name}</span>
+      ) : null}
+      {event.home_name ? <span class="byline-sep"> · </span> : null}
+      <KickoffTime at={event.starts_at} />
+    </p>
+    {/* Lazy and async: the lead image is the heaviest thing on the page and is
+        the publisher's, served from their CDN, so a slow one must not hold the
+        headline. No dimensions are known ahead of time, hence the CSS aspect box
+        rather than width/height attributes. */}
+    {event.image_url ? (
+      <div class="lead-art">
+        <img src={event.image_url} alt="" loading="lazy" decoding="async" />
+      </div>
+    ) : null}
+    {event.summary ? <p class="lead-summary">{event.summary}</p> : null}
+    {event.url ? (
+      <p>
+        <a class="cta" href={event.url} rel="noopener nofollow" target="_blank">
+          Read at {event.home_name ?? 'the source'}
+        </a>
+      </p>
+    ) : null}
+  </article>
+);
+
+/**
  * A shared entry, playable and nothing else.
  *
  * Deliberately not ChannelRow. That component offers VLC, Infuse and a .m3u
@@ -1807,6 +1859,9 @@ export const EventPage = ({
   // Channels from lists other accounts have opened. Never carries a URL.
   sharedChannels = null,
   streamDead = null,
+  // Public channels for the desk that published this. Empty on a deployment that
+  // serves none, which draws nothing rather than an empty heading.
+  watch = [],
   // The SiriusXM section's props, or null: connected reader, league SiriusXM
   // carries by team. A section is drawn, not a lookup; app.js asks for the rows.
   radio = null,
@@ -1826,7 +1881,18 @@ export const EventPage = ({
   // the provider gives no competitors for them at all. Rendering the two-sided
   // scoreboard anyway printed a pair of blank crests either side of the literal
   // words "Away vs Home", and left the Follow heading standing over an empty div.
-  const contested = Boolean(event.home_name || event.away_name);
+  //
+  // BOTH sides, not either. With `||` an event that named exactly one subject
+  // still took the two-sided path and printed the placeholder for the side it did
+  // not have -- which is every news story, since a story's one subject is the
+  // outlet that published it. A reader got a blank crest labelled "Away", the word
+  // "Final", and "Home BBC News" over an article about import tariffs.
+  const contested = Boolean(event.home_name && event.away_name);
+
+  // A story rather than a contest: one subject, and somewhere to go and read it.
+  // Keyed off the row's own content instead of the brand, so a sports provider
+  // that starts sending write-ups gets the same treatment without a flag.
+  const lead = !contested && Boolean(event.url || event.summary || event.image_url);
 
   // The feed arrives newest-first. Scoring plays read better oldest-first, as a
   // narrative; the latest-action list stays newest-first.
@@ -1888,62 +1954,70 @@ export const EventPage = ({
         <li aria-current="page">{event.short_name ?? event.name}</li>
       </ol>
 
-      {/* data-event-id and data-live let the client refresh this block in place
-          while a game is on, instead of showing a score that stopped moving. */}
-      <section
-        class={`scoreboard${contested ? '' : ' solo'}${live ? ' live' : ''}`}
-        data-event-id={event.id}
-        data-live={live ? 'true' : null}
-      >
-        {contested ? (
-          <Side
-            name={event.away_name ?? 'Away'}
-            slug={event.away_slug}
-            logo={event.away_logo}
-            score={event.away_score}
-            record={event.away_record}
-            showScore={showScore}
-            role={event.neutral_site ? null : 'away'}
-            favorite={odds?.favorite === 'away'}
-          />
-        ) : (
-          // One event, one field. The name carries it, since there is no matchup
-          // to draw and no crest to draw it with.
-          <div class="side-name solo-name">
-            <strong>{event.name}</strong>
-            {event.short_name && event.short_name !== event.name ? (
-              <span class="meta">{event.short_name}</span>
+      {/* One or the other. A story has no score to refresh and no sides to draw,
+          so the scoreboard is not rendered at all rather than rendered and
+          hidden -- hiding it would leave the crest markup and the word "Final" in
+          the document for anything that reads it rather than paints it. */}
+      {lead ? (
+        <LeadStory event={event} />
+      ) : (
+        /* data-event-id and data-live let the client refresh this block in place
+           while a game is on, instead of showing a score that stopped moving. */
+        <section
+          class={`scoreboard${contested ? '' : ' solo'}${live ? ' live' : ''}`}
+          data-event-id={event.id}
+          data-live={live ? 'true' : null}
+        >
+          {contested ? (
+            <Side
+              name={event.away_name ?? 'Away'}
+              slug={event.away_slug}
+              logo={event.away_logo}
+              score={event.away_score}
+              record={event.away_record}
+              showScore={showScore}
+              role={event.neutral_site ? null : 'away'}
+              favorite={odds?.favorite === 'away'}
+            />
+          ) : (
+            // One event, one field. The name carries it, since there is no matchup
+            // to draw and no crest to draw it with.
+            <div class="side-name solo-name">
+              <strong>{event.name}</strong>
+              {event.short_name && event.short_name !== event.name ? (
+                <span class="meta">{event.short_name}</span>
+              ) : null}
+            </div>
+          )}
+
+          <div class="middle">
+            {live ? (
+              <span class="badge live" data-status>
+                {event.status_detail ?? 'Live'}
+              </span>
+            ) : done ? (
+              <span class="badge done" data-status>
+                {event.status_detail ?? 'Final'}
+              </span>
+            ) : contested ? (
+              <span class="vs">vs</span>
             ) : null}
           </div>
-        )}
 
-        <div class="middle">
-          {live ? (
-            <span class="badge live" data-status>
-              {event.status_detail ?? 'Live'}
-            </span>
-          ) : done ? (
-            <span class="badge done" data-status>
-              {event.status_detail ?? 'Final'}
-            </span>
-          ) : contested ? (
-            <span class="vs">vs</span>
+          {contested ? (
+            <Side
+              name={event.home_name ?? 'Home'}
+              slug={event.home_slug}
+              logo={event.home_logo}
+              score={event.home_score}
+              record={event.home_record}
+              showScore={showScore}
+              role={event.neutral_site ? null : 'home'}
+              favorite={odds?.favorite === 'home'}
+            />
           ) : null}
-        </div>
-
-        {contested ? (
-          <Side
-            name={event.home_name ?? 'Home'}
-            slug={event.home_slug}
-            logo={event.home_logo}
-            score={event.home_score}
-            record={event.home_record}
-            showScore={showScore}
-            role={event.neutral_site ? null : 'home'}
-            favorite={odds?.favorite === 'home'}
-          />
-        ) : null}
-      </section>
+        </section>
+      )}
 
       {/* Directly under the scoreboard it belongs to, and above the kickoff line,
           because for a match in progress this IS the score and the kickoff time is
@@ -1963,7 +2037,10 @@ export const EventPage = ({
       <ul class="stat">
         <li>
           <strong>{event.league_name}</strong>
-          <span>Competition</span>
+          {/* "Competition" is a league word. The tile under it holds whatever this
+              brand files events under -- a section, on a site whose events are
+              articles. */}
+          <span>{Word.collection}</span>
         </li>
         {event.venue ? (
           <li>
@@ -2363,6 +2440,16 @@ export const EventPage = ({
           it. */}
       {radio ? <RadioTeamSection {...radio} /> : null}
 
+      {/* Before the marketplace section below, because this is the answer that
+          needs no account, no pass and nobody else to have shared anything: the
+          newsroom's own channel, playing in the page. Every other page that names
+          this outlet already offered it. */}
+      <ChannelList
+        channels={watch}
+        heading={event.home_name ? `Watch ${event.home_name}` : 'Watch live'}
+        blurb="Live channels, playing here. No account, nothing to install."
+      />
+
       <section class="stream">
         <h2>Watch</h2>
         {/* The upsell, for a reader with no list of their own: a pass puts channels
@@ -2388,7 +2475,7 @@ export const EventPage = ({
           </p>
         ) : offers.length === 0 ? (
           <p class="muted">
-            Nobody is sharing a stream for this game yet.
+            Nobody is sharing a stream for this {brand.words.event} yet.
             {/* Only when there is a single market to name. With the picker above
                 this sentence contradicted it -- a reader in London saw the UK tab
                 selected and then "It is on CBS, Paramount+ in United States"

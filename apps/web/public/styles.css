@@ -2849,3 +2849,60 @@ ul.group-grid .meta {
   border-top: 1px solid var(--line);
   padding-top: 0.9rem;
 }
+
+/* A published story, laid out as one.
+   ------------------------------------------------------------------------
+   The scoreboard above this in the markup answers "who is playing and what is
+   the score". An article has neither, so it gets its own block rather than a
+   scoreboard with the crests removed: one column, the headline as the heading it
+   actually is, and the link out sized like the action it is.
+
+   The image box is an aspect ratio rather than fixed dimensions because the art
+   is the publisher's and arrives at whatever size they serve. Reserving the space
+   stops the summary and the read link jumping down the page when it lands. */
+.lead-story {
+  margin: 1.25rem 0 0.5rem;
+  padding: 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+.lead-story h1 {
+  font-family: var(--disp);
+  font-size: clamp(1.6rem, 1.2rem + 2vw, 2.4rem);
+  line-height: 1.1;
+  margin: 0 0 0.5rem;
+  text-wrap: balance;
+}
+.lead-story .byline {
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin: 0 0 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem;
+}
+.lead-story .byline a {
+  color: var(--fg);
+  font-weight: 600;
+}
+.lead-art {
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  margin: 0 0 0.9rem;
+}
+.lead-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.lead-summary {
+  font-size: 1.05rem;
+  line-height: 1.55;
+  margin: 0 0 1rem;
+}
