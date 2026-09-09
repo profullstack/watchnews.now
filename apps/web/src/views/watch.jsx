@@ -92,7 +92,7 @@ export const WatchChannel = ({ user, channel, also }) => (
     </p>
 
     <ChannelList channels={also} heading="Also on" />
-    <link rel="stylesheet" href={assetUrl('/vendor-player.css')} />
-    <script src={assetUrl('/vendor-watch.js')} defer />
+    <link rel="stylesheet" href={assetUrl('vendor-player.css')} />
+    <script src={assetUrl('vendor-watch.js')} defer />
   </Layout>
 );
