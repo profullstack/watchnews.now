@@ -49,6 +49,19 @@ export const SECTIONS = [
   'health',
   'sport',
   'climate',
+  /*
+   * The three desks no newsroom feed publishes and GDELT has no notion of.
+   * They reach the collection through the newsroom directory nichedb reads, so
+   * they arrive here the same way every other desk does.
+   */
+  'entertainment',
+  'food',
+  'travel',
+  /*
+   * Not a newsroom desk at all: the small web, one writer per feed. It is kept
+   * apart rather than mixed into a section a reader opened expecting the wire.
+   */
+  'independent',
 ];
 
 /** Names a reader would write. Title-casing "us" gets you "Us". */
@@ -62,10 +75,21 @@ export const SECTION_NAMES = {
   health: 'Health',
   sport: 'Sport',
   climate: 'Climate',
+  entertainment: 'Entertainment',
+  food: 'Food',
+  travel: 'Travel',
+  independent: 'Independent',
 };
 
 /** Where each desk sits on the front page. Lower sorts first. */
-const SECTION_PRIORITY = { world: 10, us: 20, politics: 30, business: 40 };
+const SECTION_PRIORITY = {
+  world: 10,
+  us: 20,
+  politics: 30,
+  business: 40,
+  // Below the newsrooms: a supplement to the wire rather than the front page.
+  independent: 200,
+};
 
 /** nichedb caps a page at 200 however much you ask for. */
 const PAGE = 200;
@@ -123,7 +147,21 @@ export function outletOf(item) {
   const d = item?.data ?? {};
   if (typeof d.outlet === 'string' && d.outlet.trim()) {
     const slug = d.outlet.trim().toLowerCase();
-    return { key: slug, name: OUTLET_NAMES[slug] ?? titleCase(slug) };
+    /*
+     * A masthead when the upstream has one, and it usually does now.
+     *
+     * The directory nichedb reads identifies a feed by its own slug --
+     * `eco-business-com-8`, which is unique and stable and completely
+     * unreadable. Title-casing that gives "Eco Business Com 8" on every card.
+     * It also sends `outletName`, which is what the publisher calls itself,
+     * so that wins where it exists. The title-cased slug stays as the fallback
+     * for the newsroom feeds, whose outlet key is already a name.
+     */
+    const name =
+      typeof d.outletName === 'string' && d.outletName.trim()
+        ? d.outletName.trim()
+        : (OUTLET_NAMES[slug] ?? titleCase(slug));
+    return { key: slug, name };
   }
   if (typeof d.domain === 'string' && d.domain.trim()) {
     const host = d.domain

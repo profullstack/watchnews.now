@@ -9,7 +9,6 @@ const { CATALOG_ADAPTERS } = await import('../packages/sports/src/catalog.js');
 const { collect, outletOf, pickChannels, SECTION_NAMES, SECTIONS, sectionOf } = await import(
   '../packages/sports/src/nichedb.js'
 );
-const { SECTIONS: BRISK_SECTIONS } = await import('../packages/sports/src/brisk.js');
 
 const load = async (id) => {
   const saved = process.env.BRAND;
@@ -86,15 +85,13 @@ describe('the watchnews brand', () => {
   test('the sections are the categories, so there is no /news/news', async () => {
     const { brand, href } = await load('watchnews');
     /*
-     * Every desk either provider can write, and nothing else. The two lists
-     * overlap now -- both file world, politics, business and the rest -- which
-     * is safe only because `syncBrandCatalog` gates by provider rather than by
-     * sport. A desk missing from here is a story on a section the site does not
-     * offer.
+     * The desks the one provider writes, and nothing else. A section listed
+     * here that nichedb never files under is a nav entry leading to an empty
+     * page; one it files under that is missing here is a story on a section the
+     * site does not offer.
      */
-    for (const s of [...SECTIONS, ...BRISK_SECTIONS]) expect(brand.categories).toContain(s);
+    expect(brand.categories).toEqual(SECTIONS);
     expect(new Set(brand.categories).size).toBe(brand.categories.length);
-    expect(brand.categories.slice(0, SECTIONS.length)).toEqual(SECTIONS);
     expect(brand.categories).not.toContain('news');
     expect(brand.categories.length).toBeGreaterThan(5);
     expect(href.category('politics')).toBe('/news/politics');
@@ -107,9 +104,15 @@ describe('the watchnews brand', () => {
     expect(href.collection('x').startsWith(`/${brand.paths.collection}/`)).toBe(true);
   });
 
-  test('runs every news provider, and signposts the categories it does not carry', async () => {
+  /*
+   * One provider, on purpose. The directories this brand's stories come from
+   * are sources inside nichedb's news collection, where the deduplication is.
+   * Reading them here as well gave every desk a row per provider -- three
+   * sections all called "World" -- and the same publisher two outlet pages.
+   */
+  test('runs the one news provider, and signposts the categories it does not carry', async () => {
     const { brand } = await load('watchnews');
-    expect(brand.providers).toEqual(['nichedb', 'brisk', 'rssamplifier']);
+    expect(brand.providers).toEqual(['nichedb']);
     // Sport here is a news desk, not fixtures — tipoffwatch does those properly.
     expect(brand.elsewhere.sports).toBe('https://tipoffwatch.com');
   });
@@ -187,6 +190,30 @@ describe('the nichedb provider', () => {
     // www. and bare are the same publisher, not two to follow separately.
     expect(outletOf({ data: { domain: 'www.arabnews.com' } }).key).toBe('arabnews.com');
     expect(outletOf({ data: {} })).toBeNull();
+  });
+
+  /*
+   * The newsroom directory upstream identifies a feed by its own slug, which is
+   * unique, stable and unreadable. Title-casing `eco-business-com-8` puts
+   * "Eco Business Com 8" on every card, so the masthead the upstream sends wins
+   * where it exists -- and the key stays the slug, because two publications can
+   * share a name and must not share an outlet.
+   */
+  test('a masthead from upstream beats a title-cased slug', () => {
+    const story = {
+      data: { outlet: 'eco-business-com-8', outletName: 'Eco-Business', section: 'climate' },
+    };
+    expect(outletOf(story)).toEqual({ key: 'eco-business-com-8', name: 'Eco-Business' });
+
+    // Two feeds, one masthead: still two outlets.
+    const other = { data: { outlet: 'eco-business-com-3', outletName: 'Eco-Business' } };
+    expect(outletOf(other).key).not.toBe(outletOf(story).key);
+
+    // The feeds that send no masthead are unchanged: a known slug keeps its
+    // real name, an unknown one is still title-cased, and a blank does not win.
+    expect(outletOf(feedStory).name).toBe('The Wall Street Journal');
+    expect(outletOf({ data: { outlet: 'npr', outletName: '  ' } }).name).toBe('NPR');
+    expect(outletOf({ data: { outlet: 'some-local-paper' } }).name).toBe('Some Local Paper');
   });
 
   test('the section becomes the category, which is what puts it in the nav', () => {
