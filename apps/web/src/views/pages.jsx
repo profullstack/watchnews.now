@@ -25,6 +25,34 @@ import { ChannelList } from './watch.jsx';
  * wrong the moment a category is an initialism: the news brand has a desk called
  * `us`, which rendered as "us" in an <h1> and would title-case to "Us".
  */
+/**
+ * The same rows, split by the subscription they are on.
+ *
+ * Every match already carries which line it came from, but they were rendered as
+ * one flat list -- so a reader with two providers got an interleaved pile and had
+ * to read the tag on each row to work out what would play from where. Grouping
+ * makes the answer the shape of the question: here is what THIS provider has.
+ *
+ * Insertion order is the ranker's order, so the strongest match still decides
+ * which provider is listed first.
+ */
+export const byProvider = (rows = []) => {
+  const groups = new Map();
+  for (const ch of rows) {
+    const key = ch.playlistId ?? 'unknown';
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        label: ch.providerLabel ?? null,
+        managed: ch.providerManaged,
+        rows: [],
+      });
+    }
+    groups.get(key).rows.push(ch);
+  }
+  return [...groups.values()];
+};
+
 export const categoryLabel = (sport) => {
   const words = String(sport ?? '').replace(/-/g, ' ');
   return words
@@ -123,6 +151,35 @@ const PlayButton = ({ channelId }) => (
 );
 
 /**
+ * The address itself, for a player this page has never heard of.
+ *
+ * VLC and Infuse cover the two apps we can name; everything else -- mpv, ffmpeg,
+ * a set-top box, VLC on a desktop, where the callback scheme means nothing and
+ * app.js removes the button -- wants the URL pasted in, and until this existed
+ * the only way to get it was the .m3u download and a text editor.
+ *
+ * It carries the same address the VLC link beside it already carries, so it adds
+ * no exposure of its own, and it appears under exactly the same rule: never on a
+ * managed row, where the address is our reseller credential rather than the
+ * reader's own. A row with no address gets no button at all.
+ *
+ * `data-copy-url` is the whole contract with app.js. Without scripting there is
+ * nothing to press, which is why this is a button and not a link: a control that
+ * cannot work is better dead than pointing somewhere wrong.
+ */
+export const CopyUrlButton = ({ url, kind }) =>
+  url ? (
+    <button
+      type="button"
+      class="ghost small-btn copy-url-btn"
+      data-copy-url={url}
+      title={`Copy the address of this ${kind === 'live' || !kind ? 'stream' : 'file'} to paste into a player`}
+    >
+      Copy URL
+    </button>
+  ) : null;
+
+/**
  * One channel on the reader's own line, with room for a verdict.
  *
  * `data-check` is the route that asks the provider whether this slot is actually
@@ -215,6 +272,10 @@ export const ChannelRow = ({ ch, managed = false }) => {
                 .m3u
               </a>
             ) : null}
+            {/* Last of the four, and the only one that survives on every device:
+                the deep links go on a desktop, the download goes on a phone, and
+                an address in the clipboard is useful on both. */}
+            <CopyUrlButton url={ch.url} kind={ch.kind} />
           </>
         )}
         {/* Add this channel to the multiview grid. A plain link to a grid of one
@@ -451,6 +512,7 @@ const BroadcastMarkets = ({ event, marketChannels, managed = false }) => {
                               >
                                 .m3u
                               </a>
+                              <CopyUrlButton url={ch.url} kind={ch.kind} />
                             </>
                           )}
                         </span>
@@ -2334,11 +2396,26 @@ export const EventPage = ({
                 listed and still be empty. These are your provider's streams, not ours — we only
                 pass them through to your own browser.
               </p>
-              <ul class="own-channels">
-                {ownChannels.matches.map((ch) => (
-                  <ChannelRow ch={ch} managed={Boolean(ownChannels?.managed)} />
-                ))}
-              </ul>
+              {/* Grouped, because a reader with two subscriptions was getting one
+                  interleaved pile and had to read a tag on every row to tell which
+                  line would play. With one provider this renders exactly as before:
+                  a single group draws no heading. */}
+              {byProvider(ownChannels.matches).map((g, i, all) => (
+                <>
+                  {all.length > 1 && g.label ? (
+                    <p class="muted small provider-heading">
+                      On {g.label}
+                      {g.managed ? ' (your pass)' : ''} — {g.rows.length}
+                      {g.rows.length === 1 ? ' channel' : ' channels'}
+                    </p>
+                  ) : null}
+                  <ul class="own-channels">
+                    {g.rows.map((ch) => (
+                      <ChannelRow ch={ch} managed={Boolean(ownChannels?.managed)} />
+                    ))}
+                  </ul>
+                </>
+              ))}
             </>
           )}
 
