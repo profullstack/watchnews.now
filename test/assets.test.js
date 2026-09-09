@@ -40,6 +40,13 @@ async function referencedPaths() {
     )) {
       found.add(m[1]);
     }
+    // Icons reached through assetUrl() are spelled without the leading slash, so
+    // the pattern above never saw them -- which is most of the icon set, and the
+    // whole reason this test exists. A template literal is skipped on purpose:
+    // `icons/icon-${s}x${s}.png` is a family, not a path.
+    for (const m of src.matchAll(/assetUrl\('(icons\/[\w.-]+)'\)/g)) {
+      found.add(`/${m[1]}`);
+    }
   }
   return found;
 }
@@ -80,17 +87,23 @@ describe('static asset references', () => {
     }
   });
 
-  test('the header loads a sized icon, never the 1.4MB source image', async () => {
+  test('the header loads a sized icon, never the full-size source image', async () => {
     const layout = await readFile(SOURCES[0], 'utf8');
-    // logo.png and favicon.png are the same 1254x1254 source; linking either from
-    // the header would download 1.4MB on every page to draw a 44px mark.
+    // /logo.png is the 2172x724 lockup and /favicon.png the 1254x1254 mark -- the
+    // brand art as delivered, about a megabyte each. Linking either from the header
+    // would download that on every page to draw a 64px wordmark.
     expect(layout).not.toContain('"/logo.png"');
     expect(layout).not.toContain('"/favicon.png"');
     expect(layout).toContain('class="brand-logo"');
 
-    const headerIcon = /src="(\/icons\/[\w.-]+)"/.exec(layout);
+    // Either spelling: a literal src="/icons/x.png", or the versioned
+    // src={assetUrl('icons/x.png')} the rest of the head uses. Matching only the
+    // first quietly stopped finding the header icon when it moved to the second.
+    const headerIcon = /src=(?:"\/icons\/([\w.-]+)"|\{assetUrl\('icons\/([\w.-]+)'\)\})/.exec(
+      layout,
+    );
     expect(headerIcon).toBeTruthy();
-    const { size } = await Bun.file(PUBLIC + headerIcon[1].replace(/^\//, '')).stat();
+    const { size } = await Bun.file(`${PUBLIC}icons/${headerIcon[1] ?? headerIcon[2]}`).stat();
     expect(size).toBeLessThan(100_000);
   });
 

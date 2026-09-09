@@ -133,20 +133,20 @@ main {
 /* Big enough to actually read the mark at a glance; it now carries the name on
    its own, with no wordmark beside it. */
 .brand-logo {
-  /* Big, deliberately. The mark is an illustrated badge with "TipOffWatch" spelled
-     inside it, so it is the wordmark -- not an icon sitting next to one. Sized to
-     be read, not to fit a conventional header. Four goes at this: 44, 33, 48 and 72
-     were all too small because I was sizing the box instead of looking at the art. */
-  width: 112px;
-  height: 112px;
-  border-radius: 12px;
+  /* A horizontal lockup, roughly 3.2:1, with the name spelled inside the art --
+     so it is the wordmark, not an icon sitting next to one. Height is the honest
+     dimension to set here; a fixed square box would letterbox it into something
+     far smaller than the header has room for. */
+  height: 64px;
+  width: auto;
   display: block;
   object-fit: contain;
 }
 @media (max-width: 40rem) {
   .brand-logo {
-    width: 76px;
-    height: 76px;
+    /* The lockup is wide, so on a narrow screen height is what has to give if the
+       nav is to keep its row. Below this the wordmark stops being readable. */
+    height: 44px;
   }
 }
 .topbar nav {

@@ -36,9 +36,9 @@ export const Layout = (props) => {
         <meta name="theme-color" content="#12161f" />
         <link rel="manifest" href="/manifest.webmanifest" />
 
-        {/* Deliberately NOT linking the 1254x1254 /favicon.png the generator emits:
-          it is the same 1.4MB source image as the logo, and browsers would fetch it
-          on every page to draw a 16px tab icon. The generated sizes are the point. */}
+        {/* Deliberately NOT linking the 1254x1254 /favicon.png the brand art ships
+          as: it is 800KB of source image, and browsers would fetch it on every page
+          to draw a 16px tab icon. The generated sizes are the point. */}
         {/* Versioned like the stylesheet: icons sit behind a week-long cache, so
           redrawing one under its own name reaches nobody who has already visited.
           A new hash is a new URL, which is the only thing a cache respects. */}
@@ -173,14 +173,20 @@ export const Layout = (props) => {
           Skip to content
         </a>
         <header class="topbar">
-          {/* The mark carries the name, so the wordmark beside it was saying the
-            same thing twice. alt keeps it for anyone not seeing the image. */}
+          {/* The horizontal lockup, which spells the name inside the art -- so no
+            text label beside it, or the header says the same thing twice. alt
+            keeps the name for anyone not seeing the image.
+
+            Not the square mark: that one is a globe with no name on it, which is
+            right for a 16px tab and wrong for the top of the page. And not the
+            1.1MB /logo.png source either -- this is the same art at 2x the size
+            it renders. */}
           <a class="brand" href="/">
             <img
-              src="/icons/icon-192x192.png"
+              src={assetUrl('icons/wordmark.png')}
               alt={brand.name}
-              width="192"
-              height="192"
+              width="413"
+              height="128"
               class="brand-logo"
             />
           </a>

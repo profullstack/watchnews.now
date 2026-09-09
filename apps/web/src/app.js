@@ -4496,9 +4496,14 @@ app.get('/sitemaps/:file', async (c) => {
  */
 app.get('/manifest.webmanifest', (c) =>
   c.json({
-    name: 'TipoffWatch',
-    short_name: 'Tipoff',
-    description: 'Follow any team in the world and get told before they play.',
+    /*
+     * From the brand, not from a literal. The head's apple-mobile-web-app-title
+     * was moved onto `brand` when the second brand landed, but this was missed --
+     * so installing WatchNews to a home screen wrote "Tipoff" under the icon.
+     */
+    name: brand.name,
+    short_name: brand.name,
+    description: brand.description,
     start_url: '/following',
     display: 'standalone',
     orientation: 'portrait-primary',
@@ -4663,6 +4668,9 @@ const VERSIONED_ICONS = [
   ...[76, 120, 144, 152, 180].map((s) => `icons/apple-touch-icon-${s}x${s}.png`),
   ...[48, 128, 192, 256, 384, 512].map((s) => `icons/icon-${s}x${s}.png`),
   ...[192, 512].map((s) => `icons/icon-${s}x${s}-maskable.png`),
+  // The header lockup. Versioned for the same reason as the rest: it is the one
+  // asset on every page that changes when the brand art does.
+  'icons/wordmark.png',
 ];
 
 // Hashed once at boot so pages can link /styles.css?v=<hash>. See lib/asset-version.js.
