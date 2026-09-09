@@ -9,6 +9,7 @@ const { CATALOG_ADAPTERS } = await import('../packages/sports/src/catalog.js');
 const { collect, outletOf, pickChannels, SECTION_NAMES, SECTIONS, sectionOf } = await import(
   '../packages/sports/src/nichedb.js'
 );
+const { SECTIONS: BRISK_SECTIONS } = await import('../packages/sports/src/brisk.js');
 
 const load = async (id) => {
   const saved = process.env.BRAND;
@@ -84,7 +85,16 @@ describe('the watchnews brand', () => {
    */
   test('the sections are the categories, so there is no /news/news', async () => {
     const { brand, href } = await load('watchnews');
-    expect(brand.categories).toEqual(SECTIONS);
+    /*
+     * Every desk either provider can write, and nothing else. The two lists
+     * overlap now -- both file world, politics, business and the rest -- which
+     * is safe only because `syncBrandCatalog` gates by provider rather than by
+     * sport. A desk missing from here is a story on a section the site does not
+     * offer.
+     */
+    for (const s of [...SECTIONS, ...BRISK_SECTIONS]) expect(brand.categories).toContain(s);
+    expect(new Set(brand.categories).size).toBe(brand.categories.length);
+    expect(brand.categories.slice(0, SECTIONS.length)).toEqual(SECTIONS);
     expect(brand.categories).not.toContain('news');
     expect(brand.categories.length).toBeGreaterThan(5);
     expect(href.category('politics')).toBe('/news/politics');
@@ -97,9 +107,9 @@ describe('the watchnews brand', () => {
     expect(href.collection('x').startsWith(`/${brand.paths.collection}/`)).toBe(true);
   });
 
-  test('runs the one provider, and signposts the categories it does not carry', async () => {
+  test('runs every news provider, and signposts the categories it does not carry', async () => {
     const { brand } = await load('watchnews');
-    expect(brand.providers).toEqual(['nichedb']);
+    expect(brand.providers).toEqual(['nichedb', 'brisk', 'rssamplifier']);
     // Sport here is a news desk, not fixtures — tipoffwatch does those properly.
     expect(brand.elsewhere.sports).toBe('https://tipoffwatch.com');
   });
@@ -146,8 +156,9 @@ describe('the nichedb provider', () => {
     const entry = CATALOG_ADAPTERS.find((a) => a.name === 'nichedb');
     expect(entry).toBeTruthy();
     expect(typeof entry.module.fetchAll).toBe('function');
-    // lastSyncedAtForCategory looks for leagues whose sport equals this. 'news'
-    // matches none of the nine desks, so the interval would never apply.
+    // The gate itself now asks by provider, but this still has to name a desk
+    // the adapter writes: 'news' is not one of the nine and would describe
+    // nothing.
     expect(SECTIONS).toContain(entry.category);
   });
 
