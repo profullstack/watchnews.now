@@ -150,6 +150,7 @@ const BRANDS = {
         'Games that have finished, most recent first. Open one for the box score, the ' +
         'scoring plays and how it was called beforehand.',
       resultsEmpty: 'Nothing has finished in the last week.',
+      feedBlurb: 'Every fixture we know about, soonest first.',
 
       /*
        * The paid tier, in this brand's own words.
@@ -234,6 +235,7 @@ const BRANDS = {
       resultsTitle: 'Already out',
       resultsBlurb: 'Finished and released, most recent first.',
       resultsEmpty: 'Nothing has wrapped up in the last week.',
+      feedBlurb: 'Everything landing next, soonest first.',
       notFound: 'Back to what is coming up',
 
       premiumTitle: 'Premium',
@@ -291,6 +293,19 @@ const BRANDS = {
     words: NEWS_WORDS,
     paths: { category: 'news', collection: 'sections', participant: 'outlets' },
     /*
+     * Which way this brand's events point in time.
+     *
+     * The comment above this brand has said "the one brand whose events are in the
+     * past" since it was written, but only the COPY knew: every query still asked
+     * for what starts next. That is right for a fixture and empty for a story,
+     * which is exactly what /feeds/all.xml served -- a valid feed, correct headers,
+     * and no items, for a site whose front page had sixty.
+     *
+     * A flag rather than a brand-id check, because branching on the id anywhere
+     * outside this file makes it a fork with extra steps (see brand.test.js).
+     */
+    eventsArePast: true,
+    /*
      * The desks, and the order a reader meets them. These are `sport` column
      * values, written by the nichedb provider, so this list mirrors what that
      * collection actually produces rather than describing an ambition.
@@ -347,6 +362,7 @@ const BRANDS = {
       resultsBlurb: 'Everything published in the last week, newest first, across every section.',
       resultsEmpty:
         'Nothing published in the last week, which almost certainly means a sync broke.',
+      feedBlurb: 'Everything published, newest first, across every section.',
       notFound: 'Back to the latest',
 
       premiumTitle: 'Premium',

@@ -142,6 +142,12 @@ export async function ingest(result, { log = console.log, name = 'catalog' } = {
       short_name: e.shortName ?? null,
       venue: e.venue ?? null,
       venue_region: e.venueRegion ?? null,
+      // A story carries these and a fixture does not, so they are null for most
+      // rows. They were being collected and dropped here, which is why the news
+      // story page had nothing to show but the scoreboard it inherited.
+      summary: e.summary ?? null,
+      image_url: e.imageUrl ?? null,
+      url: e.url ?? null,
       // One side, not two. The schema has always allowed this -- it is how a race
       // and a fight card are stored -- so a release needs nothing new.
       home_team_id: subjectId,

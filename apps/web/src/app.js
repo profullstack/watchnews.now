@@ -800,6 +800,17 @@ app.get('/events/:id', async (c) => {
         liveOffer={liveOffer}
         marketChannels={marketChannels}
         sharedChannels={sharedChannels}
+        // The desk that published this, as something you can actually watch. Every
+        // other page that names an outlet or a section offers its channels; this
+        // one asked the reader to wait for somebody to share a stream instead,
+        // which for a news site is the one page where "watch the newsroom" is the
+        // obvious answer. Outlet first, section as the fallback, same as the
+        // outlet page -- the name is what makes the match specific.
+        watch={
+          publicChannelsOn()
+            ? await channelsFor({ outlet: event.home_name, section: event.sport, limit: 6 })
+            : []
+        }
         streamDead={c.req.query('stream_dead') ?? null}
         radio={
           radioSession && !radioSession.unreadable
@@ -4268,12 +4279,16 @@ const feedHeaders = (c, seconds) => {
 };
 
 app.get('/feeds/all.xml', async (c) => {
-  const events = await q.feedEvents({ limit: 150 });
+  const events = await q.feedEvents({ limit: 150, past: brand.eventsArePast });
   feedHeaders(c, 300);
   return c.body(
     buildFeed(events, {
-      title: 'TipoffWatch — every sport',
-      description: 'Upcoming fixtures across 354 leagues and 17 sports.',
+      // The same name the <link rel="alternate"> in the layout has always
+      // advertised, so the feed a reader subscribes to is called what the page
+      // said it was called. It used to announce itself as TipoffWatch — every
+      // sport on all three sites.
+      title: `${brand.name} — everything`,
+      description: brand.copy.feedBlurb,
       feedUrl: `${config.siteUrl}/feeds/all.xml`,
       siteUrl: config.siteUrl,
     }),
@@ -4321,13 +4336,16 @@ app.get('/feeds/:scope/:file', async (c) => {
     leagueSlug: scope === 'league' ? key : null,
     teamSlug: scope === 'team' ? key : null,
     limit: 150,
+    past: brand.eventsArePast,
   });
 
   feedHeaders(c, 300);
   return c.body(
     buildFeed(events, {
-      title: `TipoffWatch — ${label}`,
-      description: `Upcoming fixtures for ${label}.`,
+      title: `${brand.name} — ${label}`,
+      description: brand.eventsArePast
+        ? `Everything ${label} published, newest first.`
+        : `Upcoming ${brand.words.events} for ${label}.`,
       feedUrl: `${config.siteUrl}/feeds/${scope}/${key}.xml`,
       siteUrl: config.siteUrl,
       link: scope === 'league' ? `${config.siteUrl}${href.collection(key)}` : config.siteUrl,

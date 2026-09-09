@@ -1764,6 +1764,12 @@ export async function upsertEvents(events) {
       away_team_id = coalesce(excluded.away_team_id, events.away_team_id),
       venue_city = coalesce(excluded.venue_city, events.venue_city),
       venue_region = coalesce(excluded.venue_region, events.venue_region),
+      -- Coalesced like the rest: a later crawl of the same story can come back
+      -- with a truncated summary or no image, and a plain assignment would empty
+      -- a page that was complete the first time.
+      summary = coalesce(excluded.summary, events.summary),
+      image_url = coalesce(excluded.image_url, events.image_url),
+      url = coalesce(excluded.url, events.url),
       -- Not coalesced: a fixture moved to or from a neutral ground must be able to
       -- go back to false, and false is a real value rather than an absent one.
       neutral_site = excluded.neutral_site,
@@ -3360,13 +3366,44 @@ export async function rotateCalendarToken(userId) {
  * dump of the catalogue. Includes team names and the league so an item reads
  * standalone in a reader that shows nothing else.
  */
+/**
+ * @param {object} opts
+ * @param {boolean} [opts.past] Feed what has already happened, newest first, instead
+ *   of what is coming, soonest first. A story is published before anyone can read
+ *   it, so the forward window this defaults to selects none of them and the feed
+ *   goes out empty. Bounded at both ends for the same reason the results list is:
+ *   a provider that marks a future-dated row finished would otherwise pin it above
+ *   everything real.
+ */
 export async function feedEvents({
   sport = null,
   leagueSlug = null,
   teamSlug = null,
   limit = 100,
+  past = false,
 }) {
   const cap = Math.min(Math.max(Number(limit) || 100, 1), 200);
+  if (past) {
+    return sql`
+      select e.id, e.starts_at, e.name, e.short_name, e.venue, e.state,
+             e.venue_city, e.venue_region, e.neutral_site,
+             e.home_score, e.away_score, e.status_detail, e.broadcast, e.broadcast_country,
+             e.updated_at,
+             l.name as league_name, l.abbreviation as league_abbr, l.region as league_region,
+             l.abbr_ambiguous as league_abbr_ambiguous, l.slug as league_slug, l.sport,
+             ht.display_name as home_name, at.display_name as away_name
+      from events e
+      join leagues l on l.id = e.league_id
+      left join teams ht on ht.id = e.home_team_id
+      left join teams at on at.id = e.away_team_id
+      where e.starts_at <= now()
+        and (${sport}::text is null or l.sport = ${sport})
+        and (${leagueSlug}::text is null or l.slug = ${leagueSlug})
+        and (${teamSlug}::text is null or ht.slug = ${teamSlug} or at.slug = ${teamSlug})
+      order by e.starts_at desc
+      limit ${cap}
+    `;
+  }
   return sql`
     select e.id, e.starts_at, e.name, e.short_name, e.venue, e.state,
            e.venue_city, e.venue_region, e.neutral_site,

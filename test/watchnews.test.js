@@ -456,3 +456,162 @@ describe('the channel player is @profullstack/player', () => {
     expect(build).toContain('PLAYER_BUNDLES');
   });
 });
+
+describe('a story is not a fixture', () => {
+  const story = {
+    id: 1634,
+    name: 'US slaps import ban on Canadian alcohol and other goods',
+    short_name: null,
+    starts_at: new Date('2026-09-09T04:12:00Z'),
+    state: 'post',
+    league_name: 'Technology',
+    league_slug: 'technology-news',
+    league_id: 7,
+    sport: 'technology',
+    home_name: 'BBC News',
+    home_slug: 'bbc-news',
+    home_team_id: 42,
+    away_name: null,
+    away_slug: null,
+    away_team_id: null,
+    home_score: null,
+    away_score: null,
+    summary: 'Washington has widened the list of goods facing tariffs.',
+    image_url: 'https://ichef.bbci.co.uk/news/1024/lead.jpg',
+    url: 'https://www.bbc.co.uk/news/articles/abc123',
+    time_known: true,
+    precision: 'minute',
+  };
+
+  const renderStory = async ({ props = {}, ...over } = {}) => {
+    const { EventPage } = await import('../apps/web/src/views/pages.jsx');
+    return EventPage({
+      user: null,
+      event: { ...story, ...over },
+      plays: [],
+      comments: [],
+      offers: [],
+      ...props,
+    }).toString();
+  };
+
+  test('a one-sided event never prints the Home/Away placeholders', async () => {
+    // `contested` was Boolean(home || away), so a story -- whose single subject is
+    // the outlet that published it -- took the two-sided path and rendered the side
+    // it did not have as the literal words. Live on /events/1634 this read
+    // "Away - vs - Home BBC News" over an article about import tariffs.
+    const out = await renderStory();
+    expect(out).not.toMatch(/>Away</);
+    expect(out).not.toMatch(/>Home</);
+    expect(out).not.toContain('role-tag');
+    expect(out).not.toContain('class="scoreboard');
+  });
+
+  test('the headline is the heading, with the outlet and the time under it', async () => {
+    const out = await renderStory();
+    expect(out).toContain('<h1>US slaps import ban on Canadian alcohol and other goods</h1>');
+    expect(out).toContain('class="lead-story"');
+    // The participant path is the brand's own word -- /outlets on the news brand,
+    // /teams under the default this file loads. The point is that the byline links
+    // to the publisher at all, not which noun the route uses.
+    expect(out).toMatch(/href="\/(outlets|teams)\/bbc-news"/);
+    expect(out).toContain('2026-09-09T04:12:00.000Z');
+  });
+
+  test('the image, the summary and a way to go and read it', async () => {
+    const out = await renderStory();
+    expect(out).toContain('https://ichef.bbci.co.uk/news/1024/lead.jpg');
+    expect(out).toContain('Washington has widened the list of goods facing tariffs.');
+    expect(out).toContain('https://www.bbc.co.uk/news/articles/abc123');
+    expect(out).toContain('Read at BBC News');
+    // Leaving for someone else's site: never hand them our opener.
+    expect(out).toMatch(/rel="noopener[^"]*"/);
+  });
+
+  test('a real fixture still gets its scoreboard', async () => {
+    // The guard against fixing news by breaking sport. Two named sides is still a
+    // contest and must render exactly as it did.
+    const out = await renderStory({
+      away_name: 'Coventry',
+      away_slug: 'coventry',
+      away_team_id: 9,
+      summary: null,
+      image_url: null,
+      url: null,
+    });
+    expect(out).toContain('class="scoreboard');
+    expect(out).not.toContain('class="lead-story"');
+  });
+
+  test('a story page offers the outlet channels', async () => {
+    const out = await renderStory({
+      props: { watch: [{ id: '1733425', name: 'BBC News', country: 'GB', quality: '1080p' }] },
+    });
+    expect(out).toContain('Watch BBC News');
+    expect(out).toContain('href="/watch/1733425"');
+  });
+});
+
+describe('the feed a reader actually subscribes to', () => {
+  const readSrc = (f) => readFileSync(new URL(`../${f}`, import.meta.url).pathname, 'utf8');
+
+  test('the all feed asks for what this brand publishes, not only what is next', () => {
+    // /feeds/all.xml served 200, correct headers and zero items on watchnews: a
+    // story is published before anyone can read it, so a forward-looking window
+    // selects none of them while the front page was showing sixty.
+    const src = readSrc('apps/web/src/app.js');
+    expect(src).toContain('past: brand.eventsArePast');
+    expect(src).not.toContain("title: 'TipoffWatch");
+    expect(src).not.toContain('Upcoming fixtures across 354 leagues');
+  });
+
+  test('feedEvents can look backwards, newest first', () => {
+    const src = readSrc('packages/db/src/queries.js');
+    expect(src).toContain('past = false');
+    expect(src).toMatch(/order by e\.starts_at desc/);
+  });
+
+  test('nothing in the feed is branded for another site', () => {
+    const src = readSrc('apps/web/src/lib/rss.js');
+    expect(src).not.toContain('<generator>TipoffWatch</generator>');
+    expect(src).not.toContain('tipoffwatch-event-');
+  });
+
+  test('only the brand whose events are past is marked as such', async () => {
+    for (const id of ['tipoffwatch', 'genrewatch']) {
+      const { brand } = await load(id);
+      expect(brand.eventsArePast).toBeFalsy();
+      expect(brand.copy.feedBlurb).toBeTruthy();
+    }
+    const { brand } = await load('watchnews');
+    expect(brand.eventsArePast).toBe(true);
+    expect(brand.copy.feedBlurb).toBeTruthy();
+  });
+});
+
+describe('a story keeps what the provider collected', () => {
+  const readSrc = (f) => readFileSync(new URL(`../${f}`, import.meta.url).pathname, 'utf8');
+
+  test('the catalogue writer carries summary, image and link', () => {
+    // Collected by collect() in nichedb.js on every crawl and dropped on the floor
+    // here, because there were no columns to put them in.
+    const src = readSrc('packages/sports/src/catalog.js');
+    expect(src).toContain('summary: e.summary');
+    expect(src).toContain('image_url: e.imageUrl');
+    expect(src).toContain('url: e.url');
+  });
+
+  test('and the upsert does not wipe them on the next pass', () => {
+    const src = readSrc('packages/db/src/queries.js');
+    expect(src).toContain('summary = coalesce(excluded.summary, events.summary)');
+    expect(src).toContain('image_url = coalesce(excluded.image_url, events.image_url)');
+    expect(src).toContain('url = coalesce(excluded.url, events.url)');
+  });
+
+  test('there is a migration that adds the columns', () => {
+    const src = readSrc('packages/db/migrations/0037_story_fields.sql');
+    for (const col of ['summary', 'image_url', 'url']) {
+      expect(src).toContain(`add column if not exists ${col}`);
+    }
+  });
+});

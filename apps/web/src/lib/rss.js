@@ -6,6 +6,8 @@
  * playing, when, where and on what channel.
  */
 
+import { brand } from '@tipoff/config';
+
 /** Escape for XML text and attributes. Ampersand first or the rest double-escape. */
 function esc(value) {
   return String(value ?? '')
@@ -38,7 +40,11 @@ function description(event, siteUrl) {
       : null,
   ].filter(Boolean);
   const when = new Date(event.starts_at).toUTCString();
-  return `${parts.join(' · ')}. Starts ${when}. ${siteUrl}/events/${event.id}`;
+  // "Starts" is a promise about the future. On the brand whose events are already
+  // published it was telling a reader that this morning's story starts this
+  // morning, so the verb comes from the same vocabulary the pages use.
+  const verb = brand.eventsArePast ? 'Published' : 'Starts';
+  return `${parts.join(' · ')}. ${verb} ${when}. ${siteUrl}/events/${event.id}`;
 }
 
 /**
@@ -57,7 +63,10 @@ export function buildFeed(
         `      <link>${esc(`${siteUrl}/events/${e.id}`)}</link>`,
         // Permanent and stable: a reader must not re-show a fixture because its
         // score changed.
-        `      <guid isPermaLink="false">tipoffwatch-event-${e.id}</guid>`,
+        // Brand-scoped, because the three sites publish different events under the
+        // same numbering and a reader subscribed to two of them would otherwise see
+        // one suppress the other's item as already read.
+        `      <guid isPermaLink="false">${esc(brand.id)}-event-${e.id}</guid>`,
         `      <pubDate>${rfc822(e.starts_at)}</pubDate>`,
         `      <category>${esc(e.league_name)}</category>`,
         `      <description>${esc(description(e, siteUrl))}</description>`,
@@ -73,7 +82,7 @@ export function buildFeed(
     <link>${esc(link ?? siteUrl)}</link>
     <description>${esc(feedDesc)}</description>
     <language>en</language>
-    <generator>TipoffWatch</generator>
+    <generator>${esc(brand.name)}</generator>
     <lastBuildDate>${rfc822(new Date())}</lastBuildDate>
     <ttl>60</ttl>
     <atom:link href="${esc(feedUrl)}" rel="self" type="application/rss+xml" />
