@@ -151,12 +151,31 @@ export async function ingest(result, { log = console.log, name = 'catalog' } = {
   for (const [gid, ids] of byGenre) await q.linkTeamsToLeague(ids, gid);
 
   const subjectByKey = new Map(subjects.map((s) => [s.providerKey, s]));
+  const genreByKey = new Map((result.genres ?? []).map((g) => [g.providerKey, g]));
   const eventRows = [];
   let orphaned = 0;
   for (const e of result.events ?? []) {
     const subject = subjectByKey.get(e.subjectKey);
     const subjectId = subjectIds.get(e.subjectKey);
-    const genreId = subject ? genreIds.get(subject.genreKeys[0]) : null;
+    /*
+     * The collection this event actually belongs to, not merely the first one
+     * its subject belongs to.
+     *
+     * `genreKeys[0]` is right for a subject whose collections are all one
+     * category -- a show is filed under several genres and an episode belongs
+     * to the show, so any of them will do. It is wrong for a subject that spans
+     * categories, which is what a news outlet does: a publisher covering world
+     * and US news has both desks, and every one of its stories was landing on
+     * whichever came first. Live symptom after consolidating onto one provider:
+     * the US and technology desks listed outlets and not one story, because
+     * their publishers were filed under world first.
+     *
+     * Matching within the subject's own collections keeps the old answer wherever
+     * they share a category -- tvmaze's genres are all `tv`, so the find returns
+     * genreKeys[0] exactly as before.
+     */
+    const ownKey = subject?.genreKeys?.find((k) => genreByKey.get(k)?.category === e.category);
+    const genreId = subject ? (genreIds.get(ownKey) ?? genreIds.get(subject.genreKeys[0])) : null;
     // league_id is NOT NULL, so an unresolved key would abort the whole batch and
     // lose a good pass over one bad row. Counted rather than swallowed.
     if (!subjectId || !genreId) {
