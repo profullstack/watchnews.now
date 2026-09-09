@@ -286,12 +286,32 @@ export function collect(items, { beats, outlets, events }) {
 /**
  * Recent stories, newest first.
  *
+ * WHY THE WINDOW IS THIS BIG
+ *
+ * The upstream cursor is `before=<id>`, so "newest" means most recently
+ * INSERTED, not most recently published. That is fine while sources trickle,
+ * and badly wrong the moment one of them writes in bulk: the directory source
+ * upstream walks its desks in order and inserts a couple of hundred stories per
+ * desk, so a single pass lays down thousands of rows whose ids run in desk
+ * order.
+ *
+ * A thousand-item window landed entirely inside the tail of one such pass.
+ * Measured live 2026-09-09, the newest 1,000 upstream items were 195 food, 172
+ * climate, 138 travel -- and 1 US, 1 technology, 2 business, because those desks
+ * were written first and had been pushed out. The site showed those desks with
+ * outlets and no stories at all. Across the newest 4,000 the same data is
+ * healthy: 687 world, 325 politics, 301 business, 257 US, 228 technology.
+ *
+ * So the window has to be wide enough to span a whole upstream refresh rather
+ * than a slice of one. nichedb is ours and answers in milliseconds, so the cost
+ * is twenty requests; the thing being bought is every desk having stories.
+ *
  * @param {object} [opts]
- * @param {number} [opts.maxPages] 200 items each. nichedb is ours and answers in
- *   milliseconds, so the ceiling here is how much history is worth carrying, not
- *   a rate limit.
+ * @param {number} [opts.maxPages] 200 items each. The ceiling is how much
+ *   history is worth carrying and how wide one upstream pass is, not a rate
+ *   limit.
  */
-export async function fetchAll({ maxPages = 5 } = {}) {
+export async function fetchAll({ maxPages = 20 } = {}) {
   const beats = new Map();
   const outlets = new Map();
   const events = [];
