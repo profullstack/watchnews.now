@@ -414,9 +414,33 @@ describe('the channel player is @profullstack/player', () => {
   test('the page mounts a stage and loads the bundle, not a private script', () => {
     const view = read('apps/web/src/views/watch.jsx');
     expect(view).toContain('channel-stage');
-    expect(view).toContain('/vendor-watch.js');
-    expect(view).toContain('/vendor-player.css');
-    expect(view).not.toContain('/vendor-hls.js');
+    expect(view).toContain('vendor-watch.js');
+    expect(view).toContain('vendor-player.css');
+    expect(view).not.toContain('vendor-hls.js');
+  });
+
+  test('assetUrl is called with a bare filename, never a rooted path', () => {
+    // assetUrl already prepends the slash, so passing '/vendor-watch.js' emits
+    // `//vendor-watch.js` -- a protocol-relative URL the browser resolves to the
+    // HOST `vendor-watch.js`. It fails DNS, so the player bundle never loads and
+    // the channel page sits on "Starting..." forever. It looked like a dead
+    // stream rather than a missing script, and shipped because the old assertion
+    // was a substring: '//vendor-watch.js' contains '/vendor-watch.js'.
+    for (const f of ['apps/web/src/views/watch.jsx', 'apps/web/src/views/Layout.jsx']) {
+      expect(read(f)).not.toMatch(/assetUrl\(\s*['"`]\//);
+    }
+  });
+
+  test('the channel page emits same-origin asset URLs', async () => {
+    const { WatchChannel } = await import('../apps/web/src/views/watch.jsx');
+    const out = WatchChannel({
+      user: null,
+      channel: { id: '1', name: 'X', country: 'US', quality: '720p', website: null },
+      also: [],
+    }).toString();
+    expect(out).toMatch(/src="\/vendor-watch\.js(\?v=[^"]+)?"/);
+    expect(out).toMatch(/href="\/vendor-player\.css(\?v=[^"]+)?"/);
+    expect(out).not.toContain('"//');
   });
 
   test('no second copy of hls.js is pinned at the root', () => {
