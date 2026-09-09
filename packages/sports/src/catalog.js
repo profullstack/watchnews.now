@@ -19,6 +19,7 @@ import * as q from '@tipoff/db/queries';
 import * as anilist from './anilist.js';
 import * as musicbrainz from './musicbrainz.js';
 import * as nichedb from './nichedb.js';
+import { slugify } from './slug.js';
 import * as spacedevs from './spacedevs.js';
 import * as tmdb from './tmdb.js';
 import * as tvmaze from './tvmaze.js';
@@ -95,6 +96,37 @@ export async function ingest(result, { log = console.log, name = 'catalog' } = {
     display_name: s.displayName ?? s.name,
     logo_url: s.imageUrl ?? null,
   }));
+
+  /*
+   * Give up a slug somebody else already holds.
+   *
+   * An adapter can only see the batch it is building, so it can keep its own
+   * rows from colliding and nothing more. `teams.slug` is globally unique, and
+   * `upsertTeams` conflicts on (provider, provider_key) -- so a row whose slug
+   * belongs to a different key is an INSERT against a unique index, and it
+   * aborts the entire pass rather than the one row.
+   *
+   * That stayed theoretical while each adapter owned a namespace. It became a
+   * hard failure when the news collection upstream grew a newsroom directory
+   * that supplies a masthead: a feed keyed `bbc-co-uk-2` arrives named "BBC
+   * News", slugs to `bbc-news`, and the row keyed `bbci` has held that since the
+   * first sync. Every pass failed with `duplicate key value violates unique
+   * constraint "teams_slug_key"` and the newest desks stayed empty.
+   *
+   * The incumbent keeps the readable slug -- it is in somebody's bookmarks and
+   * possibly in their follows -- and the newcomer takes the discriminated form
+   * every other adapter here already uses. Derived from the provider key rather
+   * than a counter, so a re-run produces the same slug rather than drifting.
+   */
+  const owners = await q.teamSlugOwners(subjectRows.map((r) => r.slug));
+  let reslugged = 0;
+  for (const row of subjectRows) {
+    const held = owners.get(row.slug);
+    if (!held || held === `${row.provider}:${row.provider_key}`) continue;
+    row.slug = slugify(row.name, row.provider_key);
+    reslugged++;
+  }
+  if (reslugged) log(`[sync] ${name}: ${reslugged} slug(s) already taken, discriminated`);
 
   const subjectIds = new Map();
   for (let i = 0; i < subjectRows.length; i += 500) {
