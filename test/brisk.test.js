@@ -5,12 +5,9 @@ import { describe, expect, test } from 'bun:test';
 // the assignment. It needs to be set, not to connect.
 process.env.DATABASE_URL = 'postgres://localhost:5432/unused';
 const { CATALOG_ADAPTERS } = await import('../packages/sports/src/catalog.js');
-const { collect, decodeEntities, outletOf, outletSlug, SECTIONS } = await import(
-  '../packages/sports/src/brisk.js'
-);
-const { SECTIONS: NICHEDB_SECTIONS, outletSlug: nichedbSlug } = await import(
-  '../packages/sports/src/nichedb.js'
-);
+const { CATEGORY_SECTION, collect, decodeEntities, INDEPENDENT, outletOf, outletSlug, SECTIONS } =
+  await import('../packages/sports/src/brisk.js');
+const { outletSlug: nichedbSlug } = await import('../packages/sports/src/nichedb.js');
 
 const story = (over = {}) => ({
   uuid: 'https://thebeernut.blogspot.com/2026/09/lough-gill.html',
@@ -27,11 +24,14 @@ const story = (over = {}) => ({
   ...over,
 });
 
-const run = (items) => {
-  const acc = { desks: new Map(), outlets: new Map(), events: [], seen: new Set() };
+const run = (items, section) => {
+  const acc = { desks: new Map(), outlets: new Map(), events: [], seen: new Set(), section };
   collect(items, acc);
   return acc;
 };
+
+/** A wire row, which only files when a category was asked for. */
+const wire = (over = {}) => story({ source_type: 'api', source: 'thehindu.com', ...over });
 
 describe('the brisk provider', () => {
   test('is registered, and its freshness category is one it actually writes', () => {
@@ -41,17 +41,27 @@ describe('the brisk provider', () => {
     expect(SECTIONS).toContain(entry.category);
   });
 
-  /*
-   * The one that would be silent. `lastSyncedAtForCategory` is
-   * `max(rosters_synced_at) from leagues where sport = $1` with no provider
-   * filter, and `ingest` stamps it on every league it writes. Two adapters
-   * sharing a section means the one registered second reads the first one's
-   * clock, decides it is fresh, and never runs -- with nothing in the logs but
-   * "fresh (2m old)".
-   */
-  test('shares no desk with nichedb, or one of the two would never run again', () => {
-    const overlap = SECTIONS.filter((s) => NICHEDB_SECTIONS.includes(s));
-    expect(overlap).toEqual([]);
+  test('every desk it can write is a section the brand offers', async () => {
+    const saved = process.env.BRAND;
+    process.env.BRAND = 'watchnews';
+    try {
+      const { brand } = await import(`../packages/config/src/brands.js?t=${Date.now()}`);
+      for (const s of SECTIONS) expect(brand.categories).toContain(s);
+    } finally {
+      if (saved === undefined) delete process.env.BRAND;
+      else process.env.BRAND = saved;
+    }
+  });
+
+  test('every brisk category maps to a desk, and the small web is not one of them', () => {
+    for (const [category, section] of Object.entries(CATEGORY_SECTION)) {
+      expect(typeof category).toBe('string');
+      expect(SECTIONS).toContain(section);
+    }
+    // An rss row is never returned by a category= query, so this desk cannot be
+    // reached by mapping one.
+    expect(Object.values(CATEGORY_SECTION)).not.toContain(INDEPENDENT);
+    expect(SECTIONS).toContain(INDEPENDENT);
   });
 
   test('a small-web post becomes a story on the independent desk', () => {
@@ -66,22 +76,60 @@ describe('the brisk provider', () => {
   });
 
   /*
-   * The editorial line, and the reason this is not the same stories twice.
-   * nichedb already carries the wire, and a Google News URL is a redirect stub
-   * that resolves to nothing without a browser.
+   * A Google row is not an editorial judgement -- its URL 302s back to
+   * news.google.com rather than to any publisher, so every one would be a dead
+   * link on a site whose promise is showing you who reported it.
    */
-  test('keeps only the small web -- not the wire, not Google News', () => {
-    const { events } = run([
-      story({ source_type: 'api', url: 'https://vanguardngr.com/a', source: 'vanguardngr.com' }),
-      story({
-        source_type: 'google',
-        url: 'https://news.google.com/rss/articles/CBMi',
-        source: 'x.com',
-      }),
-      story(),
-    ]);
+  test('drops Google News rows, which are stubs that resolve to nothing', () => {
+    const { events } = run(
+      [
+        story({
+          source_type: 'google',
+          url: 'https://news.google.com/rss/articles/CBMi',
+          source: 'news.google.com',
+        }),
+        story(),
+      ],
+      'world',
+    );
     expect(events).toHaveLength(1);
     expect(events[0].url).toBe('https://thebeernut.blogspot.com/2026/09/lough-gill.html');
+  });
+
+  test('a wire row files under the category that was asked for', () => {
+    const { events, desks } = run([wire()], 'technology');
+    expect(events).toHaveLength(1);
+    expect(events[0].category).toBe('technology');
+    expect([...desks.values()][0].name).toBe('Technology');
+  });
+
+  /*
+   * The row's own `categories` field is empty about as often as not, so a wire
+   * row reached without asking for a desk has nothing to attribute it to.
+   * Guessing would misfile it; the category pass will pick it up.
+   */
+  test('a wire row with no desk to attribute it to is skipped, not guessed at', () => {
+    expect(run([wire()]).events).toHaveLength(0);
+  });
+
+  test('the small web files itself, whichever door it came through', () => {
+    // An rss row surfaces in the firehose (no section) and in a search.
+    expect(run([story()]).events[0].category).toBe(INDEPENDENT);
+    expect(run([story()], 'business').events[0].category).toBe(INDEPENDENT);
+  });
+
+  test('one publisher across several desks is one outlet on all of them', () => {
+    const { outlets, desks } = run([wire({ url: 'https://thehindu.com/a' })], 'world');
+    const second = {
+      desks,
+      outlets,
+      events: [],
+      seen: new Set(),
+      section: 'business',
+    };
+    collect([wire({ url: 'https://thehindu.com/b' })], second);
+    expect(outlets.size).toBe(1);
+    expect([...outlets.values()][0].genreKeys).toHaveLength(2);
   });
 
   /*
@@ -195,6 +243,17 @@ describe('the brisk provider', () => {
     const theirs = nichedbSlug(outlet, 'nichedb:outlet:theguardian.com', new Map());
     expect(mine).not.toBe(theirs);
     expect(mine).toContain('brisk');
+  });
+
+  /*
+   * leagues.slug is UNIQUE too, and nichedb already owns `world-news` and the
+   * rest of these names. Both providers now write those desks.
+   */
+  test('a desk slug cannot collide with the nichedb desk of the same name', () => {
+    const { desks } = run([wire()], 'world');
+    const slug = [...desks.values()][0].slug;
+    expect(slug).not.toBe('world-news');
+    expect(slug).toContain('brisk');
   });
 
   /*

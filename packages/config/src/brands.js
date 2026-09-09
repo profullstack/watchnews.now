@@ -321,11 +321,16 @@ const BRANDS = {
       'sport',
       'climate',
       /*
-       * Not a desk nichedb files under: this one is written only by the brisk
-       * adapter, and it has to stay that way. `lastSyncedAtForCategory` gates a
-       * provider on the newest sync of ANY league with this sport, so a section
-       * two providers share silently stops one of them from ever running.
+       * The desks brisk adds. `entertainment`, `food` and `travel` are its own
+       * categories with no counterpart in the wire nichedb reads; `independent`
+       * is the small web, which is not a category on either upstream and not a
+       * newsroom either. The rest of brisk's ten map onto the desks above --
+       * both providers write those now, which is what `lastSyncedAtForProvider`
+       * exists to make safe.
        */
+      'entertainment',
+      'food',
+      'travel',
       'independent',
     ],
 

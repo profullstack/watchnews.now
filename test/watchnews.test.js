@@ -85,11 +85,16 @@ describe('the watchnews brand', () => {
    */
   test('the sections are the categories, so there is no /news/news', async () => {
     const { brand, href } = await load('watchnews');
-    // Every desk any enabled provider writes, and nothing else. The two
-    // providers' section lists must stay disjoint -- see the freshness-gate note
-    // in catalog.js -- so a union that loses entries means one of them overlaps.
-    expect(brand.categories).toEqual([...SECTIONS, ...BRISK_SECTIONS]);
-    expect(new Set(brand.categories).size).toBe(SECTIONS.length + BRISK_SECTIONS.length);
+    /*
+     * Every desk either provider can write, and nothing else. The two lists
+     * overlap now -- both file world, politics, business and the rest -- which
+     * is safe only because `syncBrandCatalog` gates by provider rather than by
+     * sport. A desk missing from here is a story on a section the site does not
+     * offer.
+     */
+    for (const s of [...SECTIONS, ...BRISK_SECTIONS]) expect(brand.categories).toContain(s);
+    expect(new Set(brand.categories).size).toBe(brand.categories.length);
+    expect(brand.categories.slice(0, SECTIONS.length)).toEqual(SECTIONS);
     expect(brand.categories).not.toContain('news');
     expect(brand.categories.length).toBeGreaterThan(5);
     expect(href.category('politics')).toBe('/news/politics');
@@ -151,8 +156,9 @@ describe('the nichedb provider', () => {
     const entry = CATALOG_ADAPTERS.find((a) => a.name === 'nichedb');
     expect(entry).toBeTruthy();
     expect(typeof entry.module.fetchAll).toBe('function');
-    // lastSyncedAtForCategory looks for leagues whose sport equals this. 'news'
-    // matches none of the nine desks, so the interval would never apply.
+    // The gate itself now asks by provider, but this still has to name a desk
+    // the adapter writes: 'news' is not one of the nine and would describe
+    // nothing.
     expect(SECTIONS).toContain(entry.category);
   });
 

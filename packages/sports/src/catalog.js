@@ -48,22 +48,20 @@ export const CATALOG_ADAPTERS = [
    * Ours, and it answers in milliseconds, so the interval is about how often
    * news is worth re-reading rather than what an upstream will tolerate.
    *
-   * `category` is 'world', not 'news', and that is load-bearing: this adapter
-   * writes NINE categories (one per desk), and the freshness check below reads
-   * `lastSyncedAtForCategory`, which asks for leagues whose `sport` equals this
-   * value. 'news' matches no league, so it would return null every time and the
-   * interval would silently never apply. 'world' is the one desk always present.
+   * These last two are the reason `syncBrandCatalog` gates by PROVIDER rather
+   * than by this `category`. Both write news desks and they overlap -- world,
+   * politics, business and the rest -- and `ingest` stamps its clock on every
+   * collection an adapter wrote, so a gate asking by `sport` cannot tell whose
+   * pass did the stamping. Whichever ran first would mark the desk fresh and the
+   * other would skip on every tick from then on, saying only "fresh (2m old)".
+   * `category` survives here only for the per-adapter branches below, so each
+   * names a desk it genuinely writes.
    */
   { name: 'nichedb', category: 'world', module: nichedb, minIntervalMinutes: 20 },
   /*
-   * Also ours. `category` is 'independent', the one desk nichedb never writes,
-   * and that is not cosmetic: the freshness check below reads
-   * `lastSyncedAtForCategory`, which asks for leagues by `sport` WITHOUT
-   * filtering by provider, and `ingest` stamps that clock on every league it
-   * wrote. Give these two adapters a section in common and whichever is listed
-   * first stamps it, the other reads a fresh clock, and the second one never
-   * runs again. A twenty-page walk of somebody else's HTTP API is also a much
-   * heavier pass than nichedb's, so it earns a far longer interval.
+   * Also ours, but a far heavier pass than nichedb's: eleven desks, each a
+   * paginated walk of an HTTP API rather than one keyset read. Hence the longer
+   * interval. `category` is the small-web desk, which only this adapter writes.
    */
   { name: 'brisk', category: 'independent', module: brisk, minIntervalMinutes: 180 },
 ];
