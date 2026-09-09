@@ -1736,6 +1736,27 @@ export async function leaguesMissingRealName() {
   return row.n;
 }
 
+/**
+ * Who currently holds each of these team slugs.
+ *
+ * `teams.slug` is NOT NULL UNIQUE while `upsertTeams` conflicts on
+ * (provider, provider_key), so a row whose slug is already held by a DIFFERENT
+ * key is not an update -- it is an insert that violates the unique index and
+ * aborts the whole batch. The caller needs to know which slugs are spoken for,
+ * and by whom, before it writes.
+ *
+ * Returns slug -> "provider:provider_key" so the caller can tell "this is my own
+ * row, updating normally" from "somebody else has this name".
+ */
+export async function teamSlugOwners(slugs) {
+  const list = [...new Set((slugs ?? []).filter(Boolean))];
+  if (list.length === 0) return new Map();
+  const rows = await sql`
+    select slug, provider, provider_key from teams where slug = any(${pgArray(list)}::text[])
+  `;
+  return new Map(rows.map((r) => [r.slug, `${r.provider}:${r.provider_key}`]));
+}
+
 export async function upsertTeams(teams) {
   if (teams.length === 0) return [];
   return sql`
