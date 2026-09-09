@@ -17,10 +17,8 @@
 
 import * as q from '@tipoff/db/queries';
 import * as anilist from './anilist.js';
-import * as brisk from './brisk.js';
 import * as musicbrainz from './musicbrainz.js';
 import * as nichedb from './nichedb.js';
-import * as rssamplifier from './rssamplifier.js';
 import * as spacedevs from './spacedevs.js';
 import * as tmdb from './tmdb.js';
 import * as tvmaze from './tvmaze.js';
@@ -49,29 +47,12 @@ export const CATALOG_ADAPTERS = [
    * Ours, and it answers in milliseconds, so the interval is about how often
    * news is worth re-reading rather than what an upstream will tolerate.
    *
-   * These last two are the reason `syncBrandCatalog` gates by PROVIDER rather
-   * than by this `category`. Both write news desks and they overlap -- world,
-   * politics, business and the rest -- and `ingest` stamps its clock on every
-   * collection an adapter wrote, so a gate asking by `sport` cannot tell whose
-   * pass did the stamping. Whichever ran first would mark the desk fresh and the
-   * other would skip on every tick from then on, saying only "fresh (2m old)".
-   * `category` survives here only for the per-adapter branches below, so each
-   * names a desk it genuinely writes.
+   * It is the only news adapter here, and deliberately so: the two directories
+   * this brand also reads are sources INSIDE that collection now, which is where
+   * the deduplication lives. Reading them here as well produced one desk row and
+   * one outlet row per provider for the same desk and the same publisher.
    */
   { name: 'nichedb', category: 'world', module: nichedb, minIntervalMinutes: 20 },
-  /*
-   * Also ours, but a far heavier pass than nichedb's: eleven desks, each a
-   * paginated walk of an HTTP API rather than one keyset read. Hence the longer
-   * interval. `category` is the small-web desk, which only this adapter writes.
-   */
-  { name: 'brisk', category: 'independent', module: brisk, minIntervalMinutes: 180 },
-  /*
-   * Ours as well, and the only one of the three that can say a feed IS a
-   * newsroom -- it classifies every feed from its own document on each crawl.
-   * Twelve requests a pass, one per desk, each capped at 200 items with no
-   * offset to page past, so a shorter interval buys history rather than depth.
-   */
-  { name: 'rssamplifier', category: 'world', module: rssamplifier, minIntervalMinutes: 60 },
 ];
 
 /** A provider's "upcoming" is this schema's "pre". */

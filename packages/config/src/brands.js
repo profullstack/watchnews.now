@@ -321,12 +321,9 @@ const BRANDS = {
       'sport',
       'climate',
       /*
-       * The desks brisk adds. `entertainment`, `food` and `travel` are its own
-       * categories with no counterpart in the wire nichedb reads; `independent`
-       * is the small web, which is not a category on either upstream and not a
-       * newsroom either. The rest of brisk's ten map onto the desks above --
-       * both providers write those now, which is what `lastSyncedAtForProvider`
-       * exists to make safe.
+       * Three desks no newsroom feed publishes, and the small web, which is not
+       * a newsroom desk at all. All four reach this brand the same way the nine
+       * above do: through the one news collection upstream.
        */
       'entertainment',
       'food',
@@ -399,14 +396,13 @@ const BRANDS = {
       list: [
         { name: 'the newsrooms’ own feeds', url: 'https://nichedb.dev/c/news' },
         { name: 'GDELT', url: 'https://www.gdeltproject.org' },
-        { name: 'the independent web', url: 'https://brisk.news' },
         { name: 'an open newsroom directory', url: 'https://rssamplifier.com/news' },
+        { name: 'the independent web', url: 'https://brisk.news' },
       ],
       note:
-        'Collected by nichedb.dev, brisk.news and rssamplifier.com. ' +
-        'Not affiliated with any publisher.',
+        'Collected by nichedb.dev, which reads all four. ' + 'Not affiliated with any publisher.',
     },
-    providers: ['nichedb', 'brisk', 'rssamplifier'],
+    providers: ['nichedb'],
     elsewhere: {
       sports: 'https://tipoffwatch.com',
       'film and tv': 'https://genrewatch.com',
