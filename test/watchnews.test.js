@@ -9,6 +9,7 @@ const { CATALOG_ADAPTERS } = await import('../packages/sports/src/catalog.js');
 const { collect, outletOf, pickChannels, SECTION_NAMES, SECTIONS, sectionOf } = await import(
   '../packages/sports/src/nichedb.js'
 );
+const { SECTIONS: BRISK_SECTIONS } = await import('../packages/sports/src/brisk.js');
 
 const load = async (id) => {
   const saved = process.env.BRAND;
@@ -84,7 +85,11 @@ describe('the watchnews brand', () => {
    */
   test('the sections are the categories, so there is no /news/news', async () => {
     const { brand, href } = await load('watchnews');
-    expect(brand.categories).toEqual(SECTIONS);
+    // Every desk any enabled provider writes, and nothing else. The two
+    // providers' section lists must stay disjoint -- see the freshness-gate note
+    // in catalog.js -- so a union that loses entries means one of them overlaps.
+    expect(brand.categories).toEqual([...SECTIONS, ...BRISK_SECTIONS]);
+    expect(new Set(brand.categories).size).toBe(SECTIONS.length + BRISK_SECTIONS.length);
     expect(brand.categories).not.toContain('news');
     expect(brand.categories.length).toBeGreaterThan(5);
     expect(href.category('politics')).toBe('/news/politics');
@@ -97,9 +102,9 @@ describe('the watchnews brand', () => {
     expect(href.collection('x').startsWith(`/${brand.paths.collection}/`)).toBe(true);
   });
 
-  test('runs the one provider, and signposts the categories it does not carry', async () => {
+  test('runs both news providers, and signposts the categories it does not carry', async () => {
     const { brand } = await load('watchnews');
-    expect(brand.providers).toEqual(['nichedb']);
+    expect(brand.providers).toEqual(['nichedb', 'brisk']);
     // Sport here is a news desk, not fixtures — tipoffwatch does those properly.
     expect(brand.elsewhere.sports).toBe('https://tipoffwatch.com');
   });

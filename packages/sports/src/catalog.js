@@ -17,6 +17,7 @@
 
 import * as q from '@tipoff/db/queries';
 import * as anilist from './anilist.js';
+import * as brisk from './brisk.js';
 import * as musicbrainz from './musicbrainz.js';
 import * as nichedb from './nichedb.js';
 import * as spacedevs from './spacedevs.js';
@@ -54,6 +55,17 @@ export const CATALOG_ADAPTERS = [
    * interval would silently never apply. 'world' is the one desk always present.
    */
   { name: 'nichedb', category: 'world', module: nichedb, minIntervalMinutes: 20 },
+  /*
+   * Also ours. `category` is 'independent', the one desk nichedb never writes,
+   * and that is not cosmetic: the freshness check below reads
+   * `lastSyncedAtForCategory`, which asks for leagues by `sport` WITHOUT
+   * filtering by provider, and `ingest` stamps that clock on every league it
+   * wrote. Give these two adapters a section in common and whichever is listed
+   * first stamps it, the other reads a fresh clock, and the second one never
+   * runs again. A twenty-page walk of somebody else's HTTP API is also a much
+   * heavier pass than nichedb's, so it earns a far longer interval.
+   */
+  { name: 'brisk', category: 'independent', module: brisk, minIntervalMinutes: 180 },
 ];
 
 /** A provider's "upcoming" is this schema's "pre". */

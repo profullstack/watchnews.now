@@ -320,6 +320,13 @@ const BRANDS = {
       'health',
       'sport',
       'climate',
+      /*
+       * Not a desk nichedb files under: this one is written only by the brisk
+       * adapter, and it has to stay that way. `lastSyncedAtForCategory` gates a
+       * provider on the newest sync of ANY league with this sport, so a section
+       * two providers share silently stops one of them from ever running.
+       */
+      'independent',
     ],
 
     copy: {
@@ -387,10 +394,11 @@ const BRANDS = {
       list: [
         { name: 'the newsrooms’ own feeds', url: 'https://nichedb.dev/c/news' },
         { name: 'GDELT', url: 'https://www.gdeltproject.org' },
+        { name: 'the independent web', url: 'https://brisk.news' },
       ],
-      note: 'Collected by nichedb.dev. Not affiliated with any publisher.',
+      note: 'Collected by nichedb.dev and brisk.news. Not affiliated with any publisher.',
     },
-    providers: ['nichedb'],
+    providers: ['nichedb', 'brisk'],
     elsewhere: {
       sports: 'https://tipoffwatch.com',
       'film and tv': 'https://genrewatch.com',
