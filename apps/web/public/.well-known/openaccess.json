@@ -1,0 +1,29 @@
+{
+  "openaccess": "0.1",
+  "name": "watchnews.now",
+  "url": "https://watchnews.now",
+  "operator": "https://logicsrc.com/.well-known/openprofile.md",
+  "redirect_uris": [
+    "https://watchnews.now/api/v1/openaccess/callback"
+  ],
+  "jwks": {
+    "keys": [
+      {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "kid": "6Zy7LGInWseU",
+        "x": "8S5G8sf-UDqX7y6NbeAcwNoS5OOUfSwTOVFCZvwjgek",
+        "alg": "EdDSA",
+        "use": "sig"
+      }
+    ]
+  },
+  "scopes": {},
+  "honours": [
+    "profullstack.com/all-access"
+  ],
+  "webhooks": "https://watchnews.now/api/v1/openaccess/events",
+  "hubs": [
+    "https://openaccess.logicsrc.com"
+  ]
+}
