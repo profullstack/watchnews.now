@@ -3105,11 +3105,17 @@ export async function catalogueStats() {
 }
 
 /** Public API event feed. Bounded and ordered so it cannot be used to scrape the lot. */
-export async function publicEvents({ leagueSlug = null, sport = null, from = null, limit = 100 }) {
+export async function publicEvents({
+  leagueSlug = null,
+  sport = null,
+  from = null,
+  limit = 100,
+  past = false,
+}) {
   const cap = Math.min(Math.max(Number(limit) || 100, 1), 200);
   return sql`
     select e.id, e.starts_at, e.state, e.status_detail, e.name, e.short_name, e.venue,
-           e.venue_city, e.venue_region, e.neutral_site,
+           e.venue_city, e.venue_region, e.neutral_site, e.url, e.summary,
            e.home_score, e.away_score,
            -- The line, but deliberately not the box score. This response carries up
            -- to 200 fixtures and a recap is several kilobytes each, so including it
@@ -3124,10 +3130,15 @@ export async function publicEvents({ leagueSlug = null, sport = null, from = nul
     join leagues l on l.id = e.league_id
     left join teams ht on ht.id = e.home_team_id
     left join teams at on at.id = e.away_team_id
-    where e.starts_at > coalesce(${from}::timestamptz, now() - interval '3 hours')
+    where (
+        (${past} and e.state = 'post' and e.starts_at <= now()
+          and e.starts_at > coalesce(${from}::timestamptz, now() - interval '7 days'))
+        or (not ${past} and e.starts_at > coalesce(${from}::timestamptz, now() - interval '3 hours'))
+      )
       and (${leagueSlug}::text is null or l.slug = ${leagueSlug})
       and (${sport}::text is null or l.sport = ${sport})
-    order by e.starts_at
+    order by case when ${past} then e.starts_at end desc,
+             case when not ${past} then e.starts_at end asc, e.id desc
     limit ${cap}
   `;
 }

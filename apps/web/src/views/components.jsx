@@ -1,4 +1,4 @@
-import { href } from '@tipoff/config';
+import { brand, href } from '@tipoff/config';
 
 /** Shared bits of markup. Kept small and dumb on purpose. */
 
@@ -104,7 +104,12 @@ export const RowTime = ({ event }) => {
  */
 export const StateBadge = ({ state, detail }) => {
   if (state === 'in') return <span class="badge live">{detail ?? 'Live'}</span>;
-  if (state === 'post') return <span class="badge done">{detail ?? 'Final'}</span>;
+  if (state === 'post')
+    return (
+      <span class="badge done">
+        {brand.eventsArePast ? brand.words.starts : (detail ?? 'Final')}
+      </span>
+    );
   return null;
 };
 
