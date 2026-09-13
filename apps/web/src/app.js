@@ -1,7 +1,7 @@
 import { createGateway, isTrainingAgent } from '@profullstack/x402-gateway';
 import * as auth from '@tipoff/auth';
 import * as invites from '@tipoff/auth/invites';
-import { brand, config, href } from '@tipoff/config';
+import { brand, config, href, Word } from '@tipoff/config';
 import * as q from '@tipoff/db/queries';
 import * as live from '@tipoff/live';
 import { sendInviteEmail, sendLoginLink } from '@tipoff/notify';
@@ -403,7 +403,15 @@ app.get('/', async (c) => {
   const today = new Date().toISOString().slice(0, 10);
   const viewer = c.get('user');
   return cached(c, `page:home:${today}`, config.cache.scheduleTtlSeconds, async () => {
-    const events = await q.scheduleForDay({ day: today, limit: 40, viewerId: viewer?.id ?? null });
+    // News is already published when a reader arrives. A day-only schedule
+    // empties the front page at midnight even while Latest has recent stories.
+    const events = brand.eventsArePast
+      ? await q.recentResults({
+          windowDays: RESULTS_WINDOW_DAYS,
+          limit: 60,
+          viewerId: viewer?.id ?? null,
+        })
+      : await q.scheduleForDay({ day: today, limit: 40, viewerId: viewer?.id ?? null });
     return render(<Landing user={c.get('user')} today={events} vapidKey={config.push.publicKey} />);
   });
 });
@@ -4151,10 +4159,9 @@ app.get('/api/v1', async (c) => {
     license: 'Free to use, no key required. Be reasonable.',
     catalogue: stats,
     endpoints: {
-      'GET /api/v1/sports': 'Every sport, with league counts.',
-      'GET /api/v1/leagues?sport=soccer': 'Leagues, optionally filtered by sport.',
-      'GET /api/v1/events?league=soccer-eng-1&sport=soccer&limit=100':
-        'Upcoming fixtures. Both filters optional; limit caps at 200.',
+      'GET /api/v1/sports': `Every ${brand.words.category}, with ${brand.words.collection} counts.`,
+      'GET /api/v1/leagues': `${Word.collections}, optionally filtered by the sport (category) parameter.`,
+      'GET /api/v1/events?limit=100': `${brand.eventsArePast ? 'Published stories from the last seven days, newest first' : 'Upcoming fixtures'}. The league and sport filters are optional; limit caps at 200.`,
     },
   });
 });
@@ -4183,6 +4190,7 @@ app.get('/api/v1/events', async (c) => {
     leagueSlug: c.req.query('league') ?? null,
     sport: c.req.query('sport') ?? null,
     limit: c.req.query('limit') ?? 100,
+    past: brand.eventsArePast,
   });
   c.header('cache-control', 'public, max-age=60');
   return c.json({ count: events.length, events });

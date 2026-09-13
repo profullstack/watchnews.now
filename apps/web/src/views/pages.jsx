@@ -553,7 +553,7 @@ export const Landing = ({ user, today, vapidKey }) => (
       <p>{brand.copy.heroBody}</p>
       <p class="hero-actions">
         <a class="cta" href={href.category()}>
-          {user ? 'Find your teams' : "Start following — it's free"}
+          {user ? `Find your ${brand.words.participants}` : "Start following — it's free"}
         </a>
         <a class="ghost" href={href.category()}>
           {brand.copy.browse}
@@ -563,8 +563,20 @@ export const Landing = ({ user, today, vapidKey }) => (
     </section>
 
     <section>
-      <h2>Today</h2>
-      <EventList events={today} emptyText="No games scheduled today." />
+      <h2>{brand.eventsArePast ? brand.copy.resultsTitle : 'Today'}</h2>
+      <EventList
+        events={today}
+        emptyText={
+          brand.eventsArePast
+            ? brand.copy.resultsEmpty
+            : `No ${brand.words.events} scheduled today.`
+        }
+      />
+      {brand.eventsArePast ? (
+        <p>
+          <a href="/results">Browse all recent stories</a>
+        </p>
+      ) : null}
     </section>
   </Layout>
 );
@@ -656,13 +668,15 @@ export const LiveSection = ({
  */
 export const ResultsPage = ({ user, events, total, sport = null, windowDays = 7 }) => (
   <Layout
-    title={sport ? `${sport.replace(/-/g, ' ')} results` : brand.copy.resultsTitle}
+    title={sport ? `${categoryLabel(sport)} · ${brand.copy.resultsTitle}` : brand.copy.resultsTitle}
     user={user}
     canonical={sport ? `/results?sport=${encodeURIComponent(sport)}` : '/results'}
     description={
-      `Final scores from the last ${windowDays} days` +
-      `${sport ? ` in ${sport.replace(/-/g, ' ')}` : ''}. Box score, scoring plays and the ` +
-      `closing line on every finished game.`
+      brand.eventsArePast
+        ? brand.copy.resultsBlurb
+        : `Final scores from the last ${windowDays} days` +
+          `${sport ? ` in ${sport.replace(/-/g, ' ')}` : ''}. Box score, scoring plays and the ` +
+          `closing line on every finished game.`
     }
   >
     <h1>{brand.copy.resultsTitle}</h1>
@@ -672,15 +686,15 @@ export const ResultsPage = ({ user, events, total, sport = null, windowDays = 7 
       <p class="muted">
         Narrowed to {sport.replace(/-/g, ' ')}.{' '}
         <a class="link-quiet" href="/results">
-          Show every sport instead
+          Show every {brand.words.category} instead
         </a>
       </p>
     ) : null}
 
     {total > events.length ? (
       <p class="muted small">
-        {total.toLocaleString('en-US')} finished in the last {windowDays} days. Showing the most
-        recent {events.length}.
+        {total.toLocaleString('en-US')} {brand.eventsArePast ? 'published' : 'finished'} in the last{' '}
+        {windowDays} days. Showing the most recent {events.length}.
       </p>
     ) : null}
 
@@ -704,12 +718,14 @@ export const SportsIndex = ({
   soonHours,
 }) => (
   <Layout
-    title="Sports"
+    title={Word.categories}
     user={user}
     canonical={href.category()}
     description={
-      `Every ${brand.words.category} and ${brand.words.collection} we cover. Follow any ` +
-      `${brand.words.participant} for a free reminder before it plays -- notification, email or calendar feed.`
+      brand.eventsArePast
+        ? brand.copy.browseBlurb
+        : `Every ${brand.words.category} and ${brand.words.collection} we cover. Follow any ` +
+          `${brand.words.participant} for a free reminder before it plays -- notification, email or calendar feed.`
     }
   >
     <h1>{brand.copy.browse}</h1>
@@ -1018,16 +1034,22 @@ export const SportPage = ({
   watch = [],
 }) => {
   const name = categoryLabel(sport);
-  const liveEmpty = `Nothing in ${name} is on right now.`;
-  const soonEmpty = `Nothing in ${name} starts in the next ${soonHours} hours.`;
+  const liveEmpty = brand.eventsArePast
+    ? brand.copy.liveEmpty
+    : `Nothing in ${name} is on right now.`;
+  const soonEmpty = brand.eventsArePast
+    ? brand.copy.soonEmpty
+    : `Nothing in ${name} starts in the next ${soonHours} hours.`;
   return (
     <Layout
       title={sport}
       user={user}
       canonical={href.category(sport)}
       description={
-        `${leagues.length} ${brand.words.collections} in ${name}. Upcoming ${brand.words.events}, ` +
-        `live scores, and a free reminder before each one.`
+        brand.eventsArePast
+          ? `Read the latest stories in ${name} and follow the outlets reporting them.`
+          : `${leagues.length} ${brand.words.collections} in ${name}. Upcoming ${brand.words.events}, ` +
+            `live scores, and a free reminder before each one.`
       }
     >
       <ol class="crumbs" aria-label="Breadcrumb">
@@ -1037,6 +1059,11 @@ export const SportPage = ({
         <li aria-current="page">{name}</li>
       </ol>
       <h1>{name}</h1>
+      {brand.eventsArePast ? (
+        <p>
+          <a href={`/results?sport=${encodeURIComponent(sport)}`}>Read the latest in {name}</a>
+        </p>
+      ) : null}
       <p class="muted">
         {leagues.length} {leagues.length === 1 ? brand.words.collection : brand.words.collections}.
         Open one to follow its {brand.words.participants}.
@@ -1058,7 +1085,7 @@ export const SportPage = ({
               subjectId={l.id}
               following={l.following}
               next={href.category(sport)}
-              label="league"
+              label={brand.words.collection}
             />
           </li>
         ))}
@@ -2163,9 +2190,11 @@ export const EventPage = ({
 
       <h2>Follow</h2>
       <p class="muted small">
-        {contested
-          ? 'Following either side puts this game — and the rest of their season — in your reminders.'
-          : `There are no two sides to follow here, so the competition is the subject: following it puts this and every other ${event.league_name ?? 'league'} fixture in your reminders.`}
+        {brand.eventsArePast
+          ? `Follow ${event.league_name ?? 'this section'} or ${event.home_name ?? 'this outlet'} to keep their published stories together.`
+          : contested
+            ? 'Following either side puts this game — and the rest of their season — in your reminders.'
+            : `There are no two sides to follow here, so the competition is the subject: following it puts this and every other ${event.league_name ?? 'league'} fixture in your reminders.`}
       </p>
       <div class="follow-pair">
         {/* A race, a tournament or a fight card has no teams, so these render
@@ -3656,71 +3685,119 @@ export const ABOUT_FAQ = [
   ],
 ];
 
-export const About = ({ user, stats }) => (
-  <Layout
-    title="About"
-    user={user}
-    canonical="/about"
-    description="What TipoffWatch is, where the schedule data comes from, how reminders work, and why it is free."
-    jsonld={[faqNode(ABOUT_FAQ)]}
-  >
-    <h1>About TipoffWatch</h1>
-    <p>
-      A calendar for people who keep missing the start of games. Follow any team or competition and
-      get told an hour before kickoff, and again a minute out — by web notification, email, or both.
-    </p>
+export const About = ({ user, stats }) =>
+  brand.eventsArePast ? (
+    <Layout title="About" user={user} canonical="/about" description={brand.description}>
+      <h1>About {brand.name}</h1>
+      <p>{brand.copy.heroBody}</p>
+      <h2>What's in the directory</h2>
+      <ul class="stats">
+        <li>
+          <strong>{stats.sports}</strong> {brand.words.categories}
+        </li>
+        <li>
+          <strong>{stats.teams}</strong> {brand.words.participants}
+        </li>
+      </ul>
+      <p class="muted small">
+        Stories last refreshed {stats.last_sync ? <LocalTime at={stats.last_sync} /> : 'not yet'}.
+      </p>
+      <h2>Where the stories come from</h2>
+      <p>{brand.sources.lead}:</p>
+      <ul>
+        {brand.sources.list.map((source) => (
+          <li>
+            <a href={source.url}>{source.name}</a>
+          </li>
+        ))}
+      </ul>
+      <p>{brand.sources.note}</p>
+      <p>
+        Each story names its publisher and links to the original article. Headlines and summaries
+        are stored here so you can browse recent coverage when a source is unavailable.
+      </p>
+      <h2>Follow a section or outlet</h2>
+      <p>
+        Browse the <a href={href.category()}>sections</a> or <a href="/results">latest stories</a>,
+        then follow the sources you want to keep together. Published stories are listed newest
+        first.
+      </p>
+      <h2>Is {brand.name} free?</h2>
+      <p>
+        Reading stories and following sections or outlets is free. No account is needed to read.
+      </p>
+      <h2>Open data</h2>
+      <p>
+        Read the <a href="/api/v1">public API</a> or subscribe to an <a href="/feeds">RSS feed</a>.
+        Neither needs an API key.
+      </p>
+    </Layout>
+  ) : (
+    <Layout
+      title="About"
+      user={user}
+      canonical="/about"
+      description="What TipoffWatch is, where the schedule data comes from, how reminders work, and why it is free."
+      jsonld={[faqNode(ABOUT_FAQ)]}
+    >
+      <h1>About TipoffWatch</h1>
+      <p>
+        A calendar for people who keep missing the start of games. Follow any team or competition
+        and get told an hour before kickoff, and again a minute out — by web notification, email, or
+        both.
+      </p>
 
-    <h2>What's in the directory</h2>
-    <ul class="stats">
-      <li>
-        <strong>{stats.sports}</strong> sports
-      </li>
-      <li>
-        <strong>{stats.leagues}</strong> leagues
-      </li>
-      <li>
-        <strong>{stats.teams}</strong> teams
-      </li>
-      <li>
-        <strong>{stats.upcoming_events}</strong> upcoming fixtures
-      </li>
-    </ul>
-    <p class="muted small">
-      Fixtures last refreshed {stats.last_sync ? <LocalTime at={stats.last_sync} /> : 'not yet'}.
-    </p>
+      <h2>What's in the directory</h2>
+      <ul class="stats">
+        <li>
+          <strong>{stats.sports}</strong> sports
+        </li>
+        <li>
+          <strong>{stats.leagues}</strong> leagues
+        </li>
+        <li>
+          <strong>{stats.teams}</strong> teams
+        </li>
+        <li>
+          <strong>{stats.upcoming_events}</strong> upcoming fixtures
+        </li>
+      </ul>
+      <p class="muted small">
+        Fixtures last refreshed {stats.last_sync ? <LocalTime at={stats.last_sync} /> : 'not yet'}.
+      </p>
 
-    <h2>Where the data comes from</h2>
-    <p>
-      Schedules, teams and scores come from <strong>ESPN's public JSON API</strong> (
-      <code>site.api.espn.com</code> and <code>sports.core.api.espn.com</code>). We are not
-      affiliated with ESPN.
-    </p>
-    <p class="muted">
-      Every response is normalised and stored here, so the calendar keeps working when the upstream
-      is slow or unavailable — it goes stale rather than blank. Fixtures refresh every few hours and
-      the league catalogue daily.
-    </p>
+      <h2>Where the data comes from</h2>
+      <p>
+        Schedules, teams and scores come from <strong>ESPN's public JSON API</strong> (
+        <code>site.api.espn.com</code> and <code>sports.core.api.espn.com</code>). We are not
+        affiliated with ESPN.
+      </p>
+      <p class="muted">
+        Every response is normalised and stored here, so the calendar keeps working when the
+        upstream is slow or unavailable — it goes stale rather than blank. Fixtures refresh every
+        few hours and the league catalogue daily.
+      </p>
 
-    <h2>Times</h2>
-    <p class="muted">
-      All times are stored in UTC and shown in your browser's own time zone (
-      <span data-tz-label>your device</span>). Emailed reminders use the zone set in{' '}
-      <a href="/settings">settings</a>, since an email has no browser to ask.
-    </p>
+      <h2>Times</h2>
+      <p class="muted">
+        All times are stored in UTC and shown in your browser's own time zone (
+        <span data-tz-label>your device</span>). Emailed reminders use the zone set in{' '}
+        <a href="/settings">settings</a>, since an email has no browser to ask.
+      </p>
 
-    <h2>Is TipoffWatch really free?</h2>
-    <p>
-      Following teams, the calendar and the reminders are free and stay free. The only thing anyone
-      pays for is a live stream, when someone is sharing one.
-    </p>
+      <h2>Is TipoffWatch really free?</h2>
+      <p>
+        Following teams, the calendar and the reminders are free and stay free. The only thing
+        anyone pays for is a live stream, when someone is sharing one.
+      </p>
 
-    <h2>Open data</h2>
-    <p>
-      The schedule is public data, so the <a href="/api/v1">API</a> is open and needs no key. Take
-      what you need.
-    </p>
-  </Layout>
-);
+      <h2>Open data</h2>
+      <p>
+        The schedule is public data, so the <a href="/api/v1">API</a> is open and needs no key. Take
+        what you need.
+      </p>
+    </Layout>
+  );
 
 export const NotFound = ({ user }) => (
   <Layout title="Not found" user={user} noindex description="This page does not exist.">
