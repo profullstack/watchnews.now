@@ -1,8 +1,9 @@
+import { watchDependencies } from '@profullstack/watchdog';
 import { assertCoinpayMerchantKey, config } from '@tipoff/config';
 import { close as closeDb, healthcheck, sql } from '@tipoff/db';
 import { migrate } from '@tipoff/db/migrate';
 import { configurePayments } from '@tipoff/payments';
-import { closeQueues, installSchedules } from '@tipoff/queue';
+import { closeQueues, connection, installSchedules } from '@tipoff/queue';
 import { startWorkers } from '@tipoff/queue/workers';
 import { app } from './app.js';
 
@@ -77,8 +78,35 @@ if (config.roles.includes('web')) {
   console.log(`[web] listening on :${server.port} as ${config.roles.join('+')}`);
 }
 
+/*
+ * Watch the two clients the requests actually use.
+ *
+ * Both are started for either role, because both roles depend on both: the web
+ * side reads the page cache through the same Redis client the workers queue on,
+ * and a wedged worker stops every desk updating without anything going red.
+ *
+ * The probes go through the shared `sql` handle and the shared `connection`
+ * rather than a fresh one, which is the entire trick. Both siblings have lost
+ * this bet: genrewatch's pool refused to hand out connections for 29 hours on
+ * 2026-09-07 while Postgres, the container and a freshly opened connection
+ * inside it were all healthy, and tipoffwatch hung on Redis twice, whose client
+ * is built with `maxRetriesPerRequest: null` for BullMQ and therefore queues a
+ * command forever rather than rejecting it. Every time `/healthz` answered in
+ * milliseconds, because it touches neither.
+ *
+ * Timings, the DB_WATCHDOG and REDIS_WATCHDOG knobs, and the reason Redis is
+ * allowed one more failure than the pool live in the package, so the three
+ * sibling sites cannot drift apart on the part that took an outage to work out.
+ */
+const watchdogs = watchDependencies({
+  postgres: () => healthcheck(),
+  redis: () => connection.ping(),
+});
+
 async function shutdown(signal) {
   console.log(`[main] ${signal}, draining`);
+  // FIRST: a clean drain closes these clients and must not look like a wedge.
+  watchdogs.stop();
   // Stop taking new work before closing the pool, so an in-flight fan-out finishes
   // its claim rather than half-sending a batch.
   await Promise.allSettled([server?.stop(true), ...workers.map((w) => w.close())]);
