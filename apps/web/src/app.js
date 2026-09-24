@@ -1,3 +1,4 @@
+import { vapidKeysFromEnv, vapidPublicKeyResponse } from '@profullstack/notifications/server';
 import { createGateway, isTrainingAgent } from '@profullstack/x402-gateway';
 import * as auth from '@tipoff/auth';
 import * as invites from '@tipoff/auth/invites';
@@ -281,8 +282,7 @@ app.use('*', async (c, next) => {
  *
  * Registered before any route so it covers the assets and the feeds too, not just
  * the pages -- `nosniff` on a stylesheet is the half of it people forget. The
- * policy itself lives in lib/security-headers.js next to the hash of the one
- * inline script it has to allow.
+ * policy itself lives in lib/security-headers.js.
  */
 app.use('*', async (c, next) => {
   await next();
@@ -412,7 +412,7 @@ app.get('/', async (c) => {
           viewerId: viewer?.id ?? null,
         })
       : await q.scheduleForDay({ day: today, limit: 40, viewerId: viewer?.id ?? null });
-    return render(<Landing user={c.get('user')} today={events} vapidKey={config.push.publicKey} />);
+    return render(<Landing user={c.get('user')} today={events} />);
   });
 });
 
@@ -726,7 +726,6 @@ app.get('/following', async (c) => {
         events={events}
         follows={follows}
         cleared={cleared}
-        vapidKey={config.push.publicKey}
         calendarUrl={`${config.siteUrl}/calendar/me/${user.calendar_token}.ics`}
       />,
     ),
@@ -3572,9 +3571,7 @@ app.post('/api/radio/share/grant', async (c) => {
  * browser, before anything is saved, so requiring an account only adds a step
  * between someone and the answer.
  */
-app.get('/push-check', (c) =>
-  c.html(render(<PushCheck user={c.get('user')} vapidKey={config.push.publicKey} />)),
-);
+app.get('/push-check', (c) => c.html(render(<PushCheck user={c.get('user')} />)));
 
 /**
  * Where the self-check reports to.
@@ -3589,6 +3586,16 @@ app.post('/api/push/diag', async (c) => {
   console.log('[push-diag]', trimmed);
   return c.json({ ok: true });
 });
+
+/**
+ * The push public key, read from the environment on every request.
+ *
+ * Served rather than written into the page, so a key that was missing or wrong at
+ * render time cannot leave a cached page telling every browser that push is not
+ * supported. 503 with a reason when the server has no key pair, which is what the
+ * toggle then says instead of a generic "not supported".
+ */
+app.get('/api/push/vapid-public-key', () => vapidPublicKeyResponse(vapidKeysFromEnv(process.env)));
 
 app.post('/api/push/subscribe', async (c) => {
   const user = requireUser(c);
@@ -4695,6 +4702,9 @@ app.post('/api/diag', async (c) => {
  */
 const PACKAGE_FILES = [
   ['/vendor-multiview.js', '@profullstack/multiview', 'text/javascript'],
+  // The push client (support check, runtime key fetch, subscribe). A zero-dependency
+  // ES module, imported by app.js and push-check.js when a push control is on the page.
+  ['/vendor-notifications.js', '@profullstack/notifications/client', 'text/javascript'],
   ['/vendor-multiview.css', '@profullstack/multiview/multiview.css', 'text/css'],
 ];
 
