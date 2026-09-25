@@ -571,6 +571,9 @@ export const Landing = ({ user, today }) => (
             ? brand.copy.resultsEmpty
             : `No ${brand.words.events} scheduled today.`
         }
+        user={user}
+        next="/"
+        showFollow
       />
       {brand.eventsArePast ? (
         <p>
@@ -614,6 +617,12 @@ export const LiveSection = ({
   showOdds = false,
   moreHref = null,
   moreLabel = null,
+  // Threaded rather than defaulted on: this block is rendered on a section's own
+  // page too, where every row shares that section and a button per row says
+  // nothing the header has not said already.
+  user = null,
+  next = null,
+  showFollow = false,
 }) => (
   <section class={`live-now ${extraClass}`.trim()}>
     <div class="live-head">
@@ -644,6 +653,9 @@ export const LiveSection = ({
       emptyText={emptyText}
       showBroadcast={showBroadcast}
       showOdds={showOdds}
+      user={user}
+      next={next}
+      showFollow={showFollow}
     />
     {/* Only when the list is actually a sample of something larger. A "see all"
         under a complete list sends the reader to the same six rows again. */}
@@ -701,7 +713,14 @@ export const ResultsPage = ({ user, events, total, sport = null, windowDays = 7 
     {/* No broadcaster: a channel listing for a game that has already been played
         is the one piece of a row that has certainly stopped being useful. The line
         is kept, because on a finished game it is a fact about what was expected. */}
-    <EventList events={events} emptyText={brand.copy.resultsEmpty} showOdds />
+    <EventList
+      events={events}
+      emptyText={brand.copy.resultsEmpty}
+      showOdds
+      user={user}
+      next={sport ? `/results?sport=${encodeURIComponent(sport)}` : '/results'}
+      showFollow
+    />
   </Layout>
 );
 
@@ -804,6 +823,9 @@ export const SportsIndex = ({
       events={live ?? []}
       total={liveTotal}
       stalled={stalled}
+      user={user}
+      next={href.category()}
+      showFollow
     />
 
     {/* And the state either side of "on now", which had no home on this page.
@@ -823,6 +845,9 @@ export const SportsIndex = ({
       total={soonTotal}
       countTitle={`${soonTotal} in the next ${soonHours} hours`}
       extraClass="starting-soon"
+      user={user}
+      next={href.category()}
+      showFollow
     />
   </Layout>
 );
@@ -1104,6 +1129,9 @@ export const SportPage = ({
         events={live ?? []}
         total={liveTotal}
         stalled={stalled}
+        user={user}
+        next={href.category(sport)}
+        showFollow
       />
       <LiveSection
         title={brand.copy.soonTitle}
@@ -1113,6 +1141,9 @@ export const SportPage = ({
         total={soonTotal}
         countTitle={`${soonTotal} in the next ${soonHours} hours`}
         extraClass="starting-soon"
+        user={user}
+        next={href.category(sport)}
+        showFollow
       />
     </Layout>
   );

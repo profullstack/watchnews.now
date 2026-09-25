@@ -491,7 +491,26 @@ export const OddsPanel = ({ event }) => {
   );
 };
 
-export const EventRow = ({ event, showBroadcast = false, showOdds = false }) => (
+export const EventRow = ({
+  event,
+  showBroadcast = false,
+  showOdds = false,
+  // Whose follow state the row is rendering, and where a signed-out reader comes
+  // back to after signing in. Both are the page's to know, not the row's.
+  user = null,
+  next = null,
+  /*
+   * Opt-in, and only for a list whose consecutive rows belong to DIFFERENT
+   * sections.
+   *
+   * On a section's own page every row shares one section, so a button per row is
+   * the same button two hundred times over -- the one in the page header already
+   * says it. The lists that earn it are the mixed ones: the front page, what is
+   * live, what is about to publish. Those were the pages a reader could scroll
+   * from top to bottom without finding anything to follow at all.
+   */
+  showFollow = false,
+}) => (
   <li class={`event ${event.state}${event.following ? ' followed' : ''}`}>
     <RowTime event={event} />
 
@@ -561,6 +580,30 @@ export const EventRow = ({ event, showBroadcast = false, showOdds = false }) => 
 
     {/* Shown while a game is in progress too, not only once it is finished --
         a live row with no score was the whole point of watching it. */}
+    {showFollow && event.league_id ? (
+      <span class="row-follow">
+        {/*
+         * `league_following`, never the row's `following`.
+         *
+         * They are different questions and the wider one is the wrong answer here.
+         * `following` is true when the viewer follows EITHER side or the section,
+         * because it drives the star that means "this row is on your list". This
+         * button posts to /api/unfollow, so it may only read "Following" when the
+         * thing it would unfollow is the section itself -- otherwise a row followed
+         * through a newsroom sat one click away from dropping a section the reader
+         * never had.
+         */}
+        <FollowButton
+          user={user}
+          subjectType="league"
+          subjectId={event.league_id}
+          following={event.league_following}
+          next={next}
+          label={event.league_name}
+        />
+      </span>
+    ) : null}
+
     {(event.state === 'in' || event.state === 'post') && event.home_score !== null ? (
       <span class={`score${event.state === 'in' ? ' live' : ''}`}>
         {event.away_score}–{event.home_score}
@@ -572,13 +615,28 @@ export const EventRow = ({ event, showBroadcast = false, showOdds = false }) => 
   </li>
 );
 
-export const EventList = ({ events, emptyText, showBroadcast = false, showOdds = false }) =>
+export const EventList = ({
+  events,
+  emptyText,
+  showBroadcast = false,
+  showOdds = false,
+  user = null,
+  next = null,
+  showFollow = false,
+}) =>
   events.length === 0 ? (
     <p class="empty">{emptyText ?? 'Nothing scheduled.'}</p>
   ) : (
     <ul class="events">
       {events.map((e) => (
-        <EventRow event={e} showBroadcast={showBroadcast} showOdds={showOdds} />
+        <EventRow
+          event={e}
+          showBroadcast={showBroadcast}
+          showOdds={showOdds}
+          user={user}
+          next={next}
+          showFollow={showFollow}
+        />
       ))}
     </ul>
   );
