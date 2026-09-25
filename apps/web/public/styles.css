@@ -433,18 +433,34 @@ ul.sports {
   grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
   gap: 0.5rem;
 }
-ul.sports a {
+ul.sports li {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 0.15rem;
   padding: 0.9rem 1rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel);
+}
+ul.sports li:hover {
+  border-color: var(--accent);
+}
+ul.sports a {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
   color: var(--fg);
 }
-ul.sports a:hover {
-  border-color: var(--accent);
+/* Its own line under the count, held to its own width so it does not stretch the
+   card. */
+ul.sports li .inline,
+ul.sports li > a.small-btn {
+  align-self: flex-start;
+  margin-top: 0.5rem;
+}
+ul.sports li .small-btn {
+  font-size: 0.72rem;
 }
 ul.sports strong {
   font-family: var(--disp);

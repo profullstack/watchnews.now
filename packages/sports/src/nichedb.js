@@ -401,6 +401,62 @@ const distinctive = (title) =>
     .split(/\s+/)
     .filter((w) => w && !GENERIC.has(w));
 
+/**
+ * One channel per country before a second from the same one.
+ *
+ * The directory is not evenly spread and there is no reason it would be: it is
+ * whatever the crawler found. Measured on the live list, 51 of the first 60
+ * channels were from one country -- so every page with nothing specific to match
+ * on, the browse index included, showed a wall of one country's regional desks to
+ * a reader who had been reading about somewhere else. That is not a ranking, it is
+ * the order the rows happened to arrive in.
+ *
+ * Round-robin fixes it without pretending to know which country somebody wants:
+ * the first N channels are N different countries where there are that many, and
+ * the deep countries still fill the tail.
+ */
+function spreadByCountry(list) {
+  const queues = new Map();
+  for (const c of list) {
+    const key = c.country ?? '';
+    if (!queues.has(key)) queues.set(key, []);
+    queues.get(key).push(c);
+  }
+  const out = [];
+  const lanes = [...queues.values()];
+  for (let i = 0; out.length < list.length; i++) {
+    let moved = false;
+    for (const lane of lanes) {
+      if (i < lane.length) {
+        out.push(lane[i]);
+        moved = true;
+      }
+    }
+    // Every lane is exhausted. Without this a list whose longest lane is shorter
+    // than the loop's guess spins forever.
+    if (!moved) break;
+  }
+  return out;
+}
+
+/**
+ * The same channels, grouped by where they broadcast from, biggest group first.
+ *
+ * For a page whose whole subject is "what can I watch": a flat list of a thousand
+ * channels answers "is there anything from Germany" only by reading all of it.
+ */
+export function channelsByCountry(channels) {
+  const groups = new Map();
+  for (const c of channels ?? []) {
+    const key = c.country ?? '';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(c);
+  }
+  return [...groups.entries()]
+    .map(([country, list]) => ({ country: country || null, channels: list }))
+    .sort((a, b) => b.channels.length - a.channels.length);
+}
+
 export function pickChannels(channels, { section, outlet, q, limit = 12 } = {}) {
   const list = channels ?? [];
   const country = SECTION_COUNTRY[section] ?? null;
@@ -418,7 +474,10 @@ export function pickChannels(channels, { section, outlet, q, limit = 12 } = {}) 
 
   const seen = new Set();
   const ordered = [];
-  for (const c of [...named, ...pool]) {
+  // Named matches first and in their own order -- they are the answer to the
+  // question asked. The rest is a fallback, so it is spread rather than served in
+  // arrival order.
+  for (const c of [...named, ...spreadByCountry(pool)]) {
     if (seen.has(c.id)) continue;
     seen.add(c.id);
     ordered.push(c);

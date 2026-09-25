@@ -32,7 +32,75 @@ export const ChannelList = ({ channels, heading, blurb }) =>
     </section>
   );
 
-export const WatchIndex = ({ user, channels }) => (
+/**
+ * Country codes to names, for the ones the directory actually carries.
+ *
+ * Not a full ISO table: this is a heading on a page, and a two-letter code is a
+ * worse heading than a name for exactly the countries somebody is scanning for.
+ * Anything unlisted falls back to the code, which is still better than nothing.
+ */
+const COUNTRY_NAME = {
+  AE: 'United Arab Emirates',
+  AR: 'Argentina',
+  AT: 'Austria',
+  AU: 'Australia',
+  BD: 'Bangladesh',
+  BE: 'Belgium',
+  BR: 'Brazil',
+  CA: 'Canada',
+  CH: 'Switzerland',
+  CL: 'Chile',
+  CN: 'China',
+  CO: 'Colombia',
+  CZ: 'Czechia',
+  DE: 'Germany',
+  DK: 'Denmark',
+  EG: 'Egypt',
+  ES: 'Spain',
+  FI: 'Finland',
+  FR: 'France',
+  GB: 'United Kingdom',
+  GR: 'Greece',
+  HU: 'Hungary',
+  ID: 'Indonesia',
+  IE: 'Ireland',
+  IL: 'Israel',
+  IN: 'India',
+  IQ: 'Iraq',
+  IR: 'Iran',
+  IT: 'Italy',
+  JP: 'Japan',
+  KE: 'Kenya',
+  KR: 'South Korea',
+  MX: 'Mexico',
+  MY: 'Malaysia',
+  NG: 'Nigeria',
+  NL: 'Netherlands',
+  NO: 'Norway',
+  NZ: 'New Zealand',
+  PH: 'Philippines',
+  PK: 'Pakistan',
+  PL: 'Poland',
+  PT: 'Portugal',
+  QA: 'Qatar',
+  RO: 'Romania',
+  RS: 'Serbia',
+  RU: 'Russia',
+  SA: 'Saudi Arabia',
+  SE: 'Sweden',
+  SG: 'Singapore',
+  TH: 'Thailand',
+  TR: 'Turkey',
+  TW: 'Taiwan',
+  UA: 'Ukraine',
+  US: 'United States',
+  VN: 'Vietnam',
+  ZA: 'South Africa',
+};
+
+export const countryName = (code) => COUNTRY_NAME[String(code).toUpperCase()] ?? code;
+
+export const WatchIndex = ({ user, channels, groups = [] }) => (
   <Layout
     title="Watch the news"
     user={user}
@@ -44,7 +112,25 @@ export const WatchIndex = ({ user, channels }) => (
       Live news channels, playing here rather than somewhere else. No account, and nothing to
       install.
     </p>
-    <ChannelList channels={channels} heading="On now" />
+
+    {/*
+      Grouped by where each channel broadcasts from, biggest group first.
+
+      A flat list answered "is there anything from Germany" only by reading all of
+      it -- and because the directory is not evenly spread, the top of that list was
+      one country's regional desks over and over. The groups say what the coverage
+      actually is, which is the honest version of this page.
+    */}
+    {groups.length > 0 ? (
+      groups.map((g) => (
+        <ChannelList
+          channels={g.channels}
+          heading={g.country ? countryName(g.country) : 'Elsewhere'}
+        />
+      ))
+    ) : (
+      <ChannelList channels={channels} heading="On now" />
+    )}
   </Layout>
 );
 

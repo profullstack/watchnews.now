@@ -546,7 +546,7 @@ const BroadcastMarkets = ({ event, marketChannels, managed = false }) => {
   );
 };
 
-export const Landing = ({ user, today }) => (
+export const Landing = ({ user, today, watch = [] }) => (
   <Layout title={null} user={user} canonical="/">
     <section class="hero">
       <h1>{brand.copy.heroTitle}</h1>
@@ -581,6 +581,15 @@ export const Landing = ({ user, today }) => (
         </p>
       ) : null}
     </section>
+
+    {/* Under the stories, not above them: somebody arriving wants to know what
+        happened, and this is the answer to the question they ask next. It was
+        reachable from an article page and from nowhere else. */}
+    <ChannelList
+      channels={watch ?? []}
+      heading="Watch the news live"
+      blurb="Live channels from newsrooms around the world, playing in the page."
+    />
   </Layout>
 );
 
@@ -727,6 +736,7 @@ export const ResultsPage = ({ user, events, total, sport = null, windowDays = 7 
 export const SportsIndex = ({
   user,
   sports,
+  watch = [],
   leagueCounts,
   upcoming,
   live,
@@ -804,9 +814,35 @@ export const SportsIndex = ({
               {s.leagues} {s.leagues === 1 ? brand.words.collection : brand.words.collections}
             </span>
           </a>
+          {/*
+            The button the tile earned.
+
+            Every category here holds exactly one section, so this page was a list
+            of thirteen things a reader plainly wanted to follow and could not:
+            the control was one click further in, on a page that held the same one
+            section the tile names. Only rendered where the category really does
+            hold one -- with two there is no single thing to post.
+          */}
+          {s.only_league_id ? (
+            <FollowButton
+              user={user}
+              subjectType="league"
+              subjectId={s.only_league_id}
+              following={s.only_league_following}
+              next={href.category()}
+            />
+          ) : null}
         </li>
       ))}
     </ul>
+
+    {/* And what is on right now, which this page never mentioned. See the nav
+        comment: the channels had one door and it was an article page. */}
+    <ChannelList
+      channels={watch ?? []}
+      heading="Watch the news live"
+      blurb="Live channels, playing in the page. No account, and nothing to install."
+    />
 
     {/* Underneath the categories, which is where it was asked for and also where
         it belongs: this page's job is to get somebody to a league, and this is the

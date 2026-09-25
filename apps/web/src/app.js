@@ -34,6 +34,7 @@ import {
 import { connection } from '@tipoff/queue';
 import * as radio from '@tipoff/radio';
 import {
+  channelsByCountry,
   fetchChannels,
   normaliseTitle,
   oneChannelM3u,
@@ -426,7 +427,13 @@ app.get('/', async (c) => {
           viewerId: viewer?.id ?? null,
         })
       : await q.scheduleForDay({ day: today, limit: 40, viewerId: viewer?.id ?? null });
-    return render(<Landing user={c.get('user')} today={events} />);
+    return render(
+      <Landing
+        user={c.get('user')}
+        today={events}
+        watch={publicChannelsOn() ? await channelsFor({ limit: 6 }) : []}
+      />,
+    );
   });
 });
 
@@ -450,7 +457,7 @@ app.get(`/${brand.paths.category}`, async (c) => {
    */
   return cached(c, 'page:sports', 60, async () => {
     const [sports, live, liveTotal, stalled, soon, soonTotal] = await Promise.all([
-      q.listSports(),
+      q.listSports({ viewerId: user?.id ?? null }),
       q.liveNow({ viewerId: user?.id ?? null }),
       q.liveNowCount(),
       /*
@@ -479,6 +486,7 @@ app.get(`/${brand.paths.category}`, async (c) => {
       <SportsIndex
         user={user}
         sports={sports}
+        watch={publicChannelsOn() ? await channelsFor({ limit: 8 }) : []}
         leagueCounts={counts}
         upcoming={upcoming}
         live={live}
@@ -2199,7 +2207,15 @@ app.get('/watch/:id', async (c) => {
 app.get('/watch', async (c) => {
   if (!publicChannelsOn()) return c.notFound();
   const channels = await channelsFor({ limit: 60 });
-  return c.html(render(<WatchIndex user={c.get('user')} channels={channels} />));
+  return c.html(
+    render(
+      <WatchIndex
+        user={c.get('user')}
+        channels={channels}
+        groups={channelsByCountry(await newsChannels())}
+      />,
+    ),
+  );
 });
 
 /* --------------------------------------------------------------- multiview -- */
