@@ -18,6 +18,7 @@ import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
  */
 let db;
 let clause;
+let leagueClause;
 
 beforeAll(async () => {
   db = await new PGlite({ extensions: { citext, pg_trgm } });
@@ -30,8 +31,12 @@ beforeAll(async () => {
     new URL('../packages/db/src/queries.js', import.meta.url).pathname,
     'utf8',
   );
+  // `vf\b`, so the narrower clause below -- which aliases `vf_l` -- is not read as
+  // the start of one of these. Without the boundary a match opened inside the
+  // narrow clause and ran on to the NEXT query's `) as following`, swallowing a
+  // whole query and counting one extra.
   const matches = [
-    ...source.matchAll(/exists \(\s*select 1 from follows vf[\s\S]*?\) as following/g),
+    ...source.matchAll(/exists \(\s*select 1 from follows vf\b[\s\S]*?\) as following/g),
   ];
   // Seven list queries carry the flag; if one loses it, that is the regression.
   // The last three are liveNow, startingSoon and recentResults, none of which is
@@ -46,6 +51,26 @@ beforeAll(async () => {
   // placeholder in queries.js, and writing it as text here trips the lint rule
   // that looks for accidental ones.
   clause = matches[0][0].replace(/\$\{viewerId\}/, '$1');
+
+  /*
+   * The narrower flag, and the reason it is a separate column rather than a reuse.
+   *
+   * `following` above answers "is this row on your list", which is true when the
+   * viewer follows either side OR the section. That is the right question for the
+   * star on the row and the wrong one for the row's follow button, which posts to
+   * /api/unfollow: it may only read "Following" when the thing it would unfollow is
+   * the section itself. The tests at the bottom hold those two apart.
+   *
+   * Five queries carry it -- the ones feeding a MIXED list, where consecutive rows
+   * belong to different sections. A section's own page is deliberately not one of
+   * them.
+   */
+  const leagueMatches = [
+    ...source.matchAll(/exists \(\s*select 1 from follows vf_l[\s\S]*?\) as league_following/g),
+  ];
+  expect(leagueMatches.length).toBe(5);
+  expect(new Set(leagueMatches.map((m) => m[0].replace(/\s+/g, ' '))).size).toBe(1);
+  leagueClause = leagueMatches[0][0].replace(/\$\{viewerId\}/, '$1');
 }, 60_000);
 
 const one = async (sql, params) => (await db.query(sql, params)).rows[0];
@@ -58,6 +83,15 @@ const followsEvent = async (userId, eventId) =>
       [userId, eventId],
     )
   ).following;
+
+/** What the row's own follow button reads back, for one viewer and one event. */
+const followsSection = async (userId, eventId) =>
+  (
+    await one(
+      `select ${leagueClause} from events e join leagues l on l.id = e.league_id where e.id = $2`,
+      [userId, eventId],
+    )
+  ).league_following;
 
 describe('viewer follow flag', () => {
   let userId;
@@ -123,6 +157,43 @@ describe('viewer follow flag', () => {
       [other, leagueId],
     );
     expect(await followsEvent(other, eventId)).toBe(true);
+  });
+
+  /*
+   * The distinction the row button rests on.
+   *
+   * A reader who follows one newsroom has a star on that row and has NOT followed
+   * the section it was filed under. Before these two flags were told apart, the
+   * button on that row read "Following" and posted to /api/unfollow -- offering to
+   * drop a section the reader had never picked up, and doing nothing about the
+   * newsroom that actually put the row on their list.
+   */
+  test('following a newsroom does not make its section followed', async () => {
+    const reader = (await one(`insert into users (email) values ('desk@example.com') returning id`))
+      .id;
+    await db.query(
+      `insert into follows (user_id, subject_type, subject_id) values ($1,'team',$2)`,
+      [reader, homeId],
+    );
+    expect(await followsEvent(reader, eventId)).toBe(true);
+    expect(await followsSection(reader, eventId)).toBe(false);
+  });
+
+  test('following the section is what the row button reads back', async () => {
+    const reader = (
+      await one(`insert into users (email) values ('section@example.com') returning id`)
+    ).id;
+    expect(await followsSection(reader, eventId)).toBe(false);
+    await db.query(
+      `insert into follows (user_id, subject_type, subject_id) values ($1,'league',$2)`,
+      [reader, leagueId],
+    );
+    expect(await followsSection(reader, eventId)).toBe(true);
+    expect(await followsEvent(reader, eventId)).toBe(true);
+  });
+
+  test('a signed-out visitor has no section followed either', async () => {
+    expect(await followsSection(null, eventId)).toBe(false);
   });
 
   test("one user's follow never leaks into another's view", async () => {

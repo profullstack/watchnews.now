@@ -2187,6 +2187,12 @@ export async function startingSoon({
                  or (vf.subject_type = 'league' and vf.subject_id = e.league_id)
                )
            ) as following,
+           exists (
+             select 1 from follows vf_l
+             where vf_l.user_id = ${viewerId}
+               and vf_l.subject_type = 'league'
+               and vf_l.subject_id = e.league_id
+           ) as league_following,
            ht.display_name as home_name, ht.logo_url as home_logo,
            at.display_name as away_name, at.logo_url as away_logo
     from events e
@@ -2496,6 +2502,12 @@ export async function scheduleForDay({ day, sport = null, limit = 300, viewerId 
                    or (vf.subject_type = 'league' and vf.subject_id = e.league_id)
                  )
              ) as following,
+             exists (
+               select 1 from follows vf_l
+               where vf_l.user_id = ${viewerId}
+                 and vf_l.subject_type = 'league'
+                 and vf_l.subject_id = e.league_id
+             ) as league_following,
              ht.display_name as home_name, ht.logo_url as home_logo,
              at.display_name as away_name, at.logo_url as away_logo
       from events e
@@ -2518,6 +2530,12 @@ export async function scheduleForDay({ day, sport = null, limit = 300, viewerId 
                  or (vf.subject_type = 'league' and vf.subject_id = e.league_id)
                )
            ) as following,
+           exists (
+             select 1 from follows vf_l
+             where vf_l.user_id = ${viewerId}
+               and vf_l.subject_type = 'league'
+               and vf_l.subject_id = e.league_id
+           ) as league_following,
            ht.display_name as home_name, ht.logo_url as home_logo,
            at.display_name as away_name, at.logo_url as away_logo
     from events e
@@ -2602,6 +2620,12 @@ export async function liveNow({
                  or (vf.subject_type = 'league' and vf.subject_id = e.league_id)
                )
            ) as following,
+           exists (
+             select 1 from follows vf_l
+             where vf_l.user_id = ${viewerId}
+               and vf_l.subject_type = 'league'
+               and vf_l.subject_id = e.league_id
+           ) as league_following,
            ht.display_name as home_name, ht.logo_url as home_logo,
            at.display_name as away_name, at.logo_url as away_logo
     from events e
@@ -2770,6 +2794,12 @@ export async function recentResults({
                  or (vf.subject_type = 'league' and vf.subject_id = e.league_id)
                )
            ) as following,
+           exists (
+             select 1 from follows vf_l
+             where vf_l.user_id = ${viewerId}
+               and vf_l.subject_type = 'league'
+               and vf_l.subject_id = e.league_id
+           ) as league_following,
            ht.display_name as home_name, ht.logo_url as home_logo, ht.slug as home_slug,
            at.display_name as away_name, at.logo_url as away_logo, at.slug as away_slug
     from events e

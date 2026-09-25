@@ -252,7 +252,7 @@ ul.events {
 
 li.event {
   display: grid;
-  grid-template-columns: 5.6rem 1fr auto;
+  grid-template-columns: 5.6rem 1fr auto auto;
   align-items: center;
   gap: 1.1rem;
   padding: 0.85rem 1rem;
@@ -296,6 +296,17 @@ li.event time .d {
   text-transform: uppercase;
   color: var(--muted);
   margin-top: 0.3rem;
+}
+
+/* The row's own follow control. Never allowed to grow: the row is about what was
+   published, and a button that widens with the section name pushes the headline --
+   the thing being read -- into fewer and fewer characters. */
+.row-follow {
+  justify-self: end;
+  white-space: nowrap;
+}
+.row-follow .small-btn {
+  font-size: 0.72rem;
 }
 
 .matchup {
@@ -737,6 +748,10 @@ footer {
     row-gap: 0.5rem;
   }
   li.event .score {
+    grid-column: 2;
+    justify-self: end;
+  }
+  li.event .row-follow {
     grid-column: 2;
     justify-self: end;
   }
