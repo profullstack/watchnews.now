@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { open, seal } from '@tipoff/auth';
-import { config } from '@tipoff/config';
+import { brand, config } from '@tipoff/config';
 import * as q from '@tipoff/db/queries';
 import {
   broadcastTerms,
@@ -634,9 +634,28 @@ export async function ownChannelsForEvent({ userId, event }) {
     fixture: {
       home: event.home_name,
       away: event.away_name,
-      // Carried so a race, a fight card or a tournament -- which have no two sides
-      // and so could never match on teams -- have something to match on.
-      eventName: event.name,
+      /*
+       * The event's own name, but NOT on a brand whose events are articles.
+       *
+       * On a fixture this is the right thing to match: a race, a fight card or a
+       * tournament has no two sides, so its name is the only handle there is.
+       *
+       * On a news brand the same field is a HEADLINE, and matching channel titles
+       * against the words of "Canada prosecutors drop charges against two in
+       * Toronto gold heist" can only ever succeed by accident -- it hunts for a
+       * channel called Canada, or Toronto, and calls that "where to watch this
+       * story". Worse than useless: matchTerms takes the first 3,000 candidate rows
+       * in position order, so headline words crowd out the terms that do mean
+       * something before the ranker ever sees them.
+       *
+       * What a story actually has to offer is its DESK and the OUTLET that
+       * published it, which are the two fields below, and which the public channel
+       * box on the same page has always keyed on.
+       */
+      eventName: brand.eventsArePast ? null : event.name,
+      // Which leaves the desk and the outlet as the whole of the match on a news
+      // brand: `leagueName` is the section ("World news"), and `home` above is the
+      // newsroom that filed the story.
       leagueName: event.league_name,
       leagueAbbr: event.league_abbr,
       // What sport this is, so a title naming a DIFFERENT one cannot be offered as

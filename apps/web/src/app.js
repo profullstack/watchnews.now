@@ -34,7 +34,8 @@ import {
 import { connection } from '@tipoff/queue';
 import * as radio from '@tipoff/radio';
 import {
-  channelsByCountry,
+  channelsFromCountry,
+  countryIndex,
   fetchChannels,
   normaliseTitle,
   oneChannelM3u,
@@ -78,7 +79,7 @@ import {
 import { Inbox, PeopleListPage, ProfilePage, Thread } from './views/people.jsx';
 import { InvitePage, PremiumPage } from './views/premium.jsx';
 import { RadioPage, RadioSidesFragment } from './views/radio.jsx';
-import { WatchChannel, WatchIndex } from './views/watch.jsx';
+import { WatchChannel, WatchCountry, WatchIndex } from './views/watch.jsx';
 import { nextAdvert } from './lib/ads.js';
 
 export const app = new Hono();
@@ -2194,6 +2195,25 @@ app.get('/watch/seg/:token', async (c) => {
   return c.body(res.body);
 });
 
+/*
+ * Before the catch-all below, and that ordering is the point.
+ *
+ * `country` is two segments deep so `/watch/:id` would not swallow it today, but
+ * relying on that is relying on an id never containing a slash and on nobody ever
+ * giving a channel a slug. A facet route in front of a wildcard costs nothing.
+ */
+app.get('/watch/country/:code', async (c) => {
+  if (!publicChannelsOn()) return c.notFound();
+  const code = c.req.param('code');
+  // Two letters, because that is what the directory stores and because this string
+  // reaches a page title. Anything else is not a country we could have channels for.
+  if (!/^[A-Za-z]{2}$/.test(code)) return c.notFound();
+  const channels = channelsFromCountry(await newsChannels(), code);
+  return c.html(
+    render(<WatchCountry user={c.get('user')} code={code.toUpperCase()} channels={channels} />),
+  );
+});
+
 app.get('/watch/:id', async (c) => {
   if (!publicChannelsOn()) return c.notFound();
   const channel = await channelById(c.req.param('id'));
@@ -2206,13 +2226,22 @@ app.get('/watch/:id', async (c) => {
 
 app.get('/watch', async (c) => {
   if (!publicChannelsOn()) return c.notFound();
-  const channels = await channelsFor({ limit: 60 });
+  const all = await newsChannels();
+  const q = (c.req.query('q') ?? '').trim().slice(0, 60);
+  const index = countryIndex(all);
   return c.html(
     render(
       <WatchIndex
         user={c.get('user')}
-        channels={channels}
-        groups={channelsByCountry(await newsChannels())}
+        // Only the search result goes in here; the sample below is the no-query view.
+        channels={q ? pickChannels(all, { q, limit: 40 }) : []}
+        // One per country by construction, so the top of the page is a spread rather
+        // than whichever country the crawler found most of.
+        sample={q ? [] : pickChannels(all, { limit: 12 })}
+        index={index}
+        total={all.length}
+        countries={index.reduce((n, r) => n + r.countries.length, 0)}
+        q={q || null}
       />,
     ),
   );

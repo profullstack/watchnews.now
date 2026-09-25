@@ -440,21 +440,73 @@ function spreadByCountry(list) {
 }
 
 /**
- * The same channels, grouped by where they broadcast from, biggest group first.
+ * Where each country sits, for a browse page.
  *
- * For a page whose whole subject is "what can I watch": a flat list of a thousand
- * channels answers "is there anything from Germany" only by reading all of it.
+ * 117 countries is too many to put in front of somebody as one list, and it is the
+ * only facet this directory actually has: country is filled on every channel,
+ * network on a fifth of them, and there is no genre field and no logo at all. So
+ * the axis has to be country, and country has to be grouped or it is a wall.
+ *
+ * Six regions rather than continents exactly: "Middle East" is how a news audience
+ * divides the map even though it is not a continent, and it is the grouping that
+ * makes Al Jazeera and Al Arabiya findable together. Anything unlisted lands in
+ * Elsewhere rather than being dropped.
+ *
+ * Codes are nichedb's, which is ISO-3166 with two house exceptions: UK rather than
+ * GB, and XK for Kosovo.
  */
-export function channelsByCountry(channels) {
-  const groups = new Map();
+const REGION = {
+  Africa: 'BF BJ CD CI CM DZ EG ET GN KE LY MA NE NG SD SN TG ZA',
+  Americas: 'AR BO BR BS BZ CA CL CO CR CU DO EC GT HN HT MX NI PA PE PR PY SV US VE',
+  Asia: 'AF AM AZ BD CN GE HK ID IN JP KG KH KR KZ LA MM MN MO MV MY PH PK SG TH TW UZ VN',
+  Europe: 'AL BA BE BG BY CH CY CZ DE ES FI FR GR HR HU IE IS IT LT MC MD MK MT NL PL PT RO RU SE SK UA UK XK',
+  'Middle East': 'AE IL IQ IR JO KW LB OM PS QA SA SY TR YE',
+  Oceania: 'AU',
+};
+
+const REGION_OF = new Map();
+for (const [region, codes] of Object.entries(REGION)) {
+  for (const code of codes.split(' ')) REGION_OF.set(code, region);
+}
+
+/** Which region a channel's country belongs to. */
+export const regionOf = (country) => REGION_OF.get(String(country ?? '').toUpperCase()) ?? 'Elsewhere';
+
+/**
+ * The browse index: every region, and every country inside it with a count.
+ *
+ * Alphabetical at both levels and NOT by size, which is the whole point. Ordering
+ * by size put one country's 256 regional desks at the top of the page and left a
+ * reader on an English-language news site scrolling past them to reach anything
+ * else -- the same fault as the unordered list it replaced, one level up.
+ */
+export function countryIndex(channels) {
+  const counts = new Map();
   for (const c of channels ?? []) {
-    const key = c.country ?? '';
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(c);
+    const code = (c.country ?? '').toUpperCase();
+    if (!code) continue;
+    counts.set(code, (counts.get(code) ?? 0) + 1);
   }
-  return [...groups.entries()]
-    .map(([country, list]) => ({ country: country || null, channels: list }))
-    .sort((a, b) => b.channels.length - a.channels.length);
+  const regions = new Map();
+  for (const [code, count] of counts) {
+    const region = regionOf(code);
+    if (!regions.has(region)) regions.set(region, []);
+    regions.get(region).push({ code, count });
+  }
+  return [...regions.entries()]
+    .map(([region, countries]) => ({
+      region,
+      countries: countries.sort((a, b) => a.code.localeCompare(b.code)),
+      total: countries.reduce((n, c) => n + c.count, 0),
+    }))
+    .sort((a, b) => a.region.localeCompare(b.region));
+}
+
+/** Every channel from one country, by its code. */
+export function channelsFromCountry(channels, code) {
+  const want = String(code ?? '').toUpperCase();
+  if (!want) return [];
+  return (channels ?? []).filter((c) => (c.country ?? '').toUpperCase() === want);
 }
 
 export function pickChannels(channels, { section, outlet, q, limit = 12 } = {}) {
