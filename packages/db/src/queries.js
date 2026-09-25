@@ -1948,8 +1948,35 @@ export async function listLeagues({ sport = null, limit = 500 } = {}) {
   return sql`select * from leagues where active and superseded_by is null order by priority, name limit ${limit}`;
 }
 
-export async function listSports() {
-  return sql`select sport, count(*)::int as leagues from leagues where active and superseded_by is null group by sport order by sport`;
+export async function listSports({ viewerId = null } = {}) {
+  /*
+   * The single section a category holds, when it holds exactly one.
+   *
+   * On this brand every one of the thirteen categories holds exactly one section,
+   * so the level between them is a pass-through: a reader on the browse page saw a
+   * tile, clicked it, and found one section with one follow button. The tile IS
+   * that section, so it can carry the button itself.
+   *
+   * Guarded on the count rather than always taken. With two or more sections there
+   * is no single thing the tile could follow, and `bool_or` over them would say
+   * "you follow one of these", which is not a state a button can post back.
+   */
+  return sql`
+    select l.sport,
+           count(*)::int as leagues,
+           case when count(*) = 1 then (array_agg(l.id order by l.priority, l.name))[1] end
+             as only_league_id,
+           case when count(*) = 1 then (array_agg(l.name order by l.priority, l.name))[1] end
+             as only_league_name,
+           case when count(*) = 1 then bool_or(f.user_id is not null) end
+             as only_league_following
+    from leagues l
+    left join follows f
+      on f.subject_type = 'league' and f.subject_id = l.id and f.user_id = ${viewerId}::uuid
+    where l.active and l.superseded_by is null
+    group by l.sport
+    order by l.sport
+  `;
 }
 
 /**

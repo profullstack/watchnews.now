@@ -228,6 +228,21 @@ export const Layout = (props) => {
               for without an account: they missed it and want the score. Everything
               else in this nav is about what has not happened yet. */}
             <a href="/results">{brand.copy.resultsTitle}</a>
+            {/*
+              A door to the channels.
+
+              There are about a thousand live news channels behind /watch and, until
+              this line, the only way to reach any of them was the "where to watch"
+              box on an individual article. The browse page did not link it, the
+              front page did not link it, and it was not in this nav -- so the whole
+              surface was reachable only by somebody who already knew the URL.
+
+              Gated on the same condition the routes are, so a brand that carries no
+              channels does not advertise a 404.
+            */}
+            {brand.providers.includes('nichedb') && config.playlists.enabled ? (
+              <a href="/watch">Live TV</a>
+            ) : null}
             {props.user ? <a href="/following">{brand.copy.mine}</a> : null}
             {/* The count rides on the user, set once in middleware, so a view stays
               a view and no render call has to remember to pass it. */}
