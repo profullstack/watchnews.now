@@ -5,7 +5,9 @@ process.env.DATABASE_URL = 'postgres://localhost:5432/unused';
 
 const read = (p) => readFile(new URL(p, import.meta.url).pathname, 'utf8');
 
-const { channelsByCountry, pickChannels } = await import('../packages/sports/src/nichedb.js');
+const { channelsFromCountry, countryIndex, pickChannels, regionOf } = await import(
+  '../packages/sports/src/nichedb.js'
+);
 
 const ch = (id, name, country) => ({
   id: String(id),
@@ -61,27 +63,77 @@ describe('which channels a page with nothing to match on shows', () => {
 
   test('an empty directory is not an exception', () => {
     expect(pickChannels([], { limit: 8 })).toEqual([]);
-    expect(channelsByCountry([])).toEqual([]);
-    expect(channelsByCountry(undefined)).toEqual([]);
+    expect(countryIndex([])).toEqual([]);
+    expect(countryIndex(undefined)).toEqual([]);
+    expect(channelsFromCountry([], 'DE')).toEqual([]);
   });
 });
 
-describe('grouping the watch index', () => {
-  test('biggest group first, and every channel in exactly one', () => {
-    const groups = channelsByCountry(lopsided);
-    expect(groups[0]).toEqual({ country: 'IN', channels: groups[0].channels });
-    expect(groups[0].channels).toHaveLength(51);
-    expect(groups.reduce((n, g) => n + g.channels.length, 0)).toBe(lopsided.length);
-    const ids = groups.flatMap((g) => g.channels.map((c) => c.id));
-    expect(new Set(ids).size).toBe(ids.length);
+describe('browsing by country', () => {
+  /*
+   * The fault this replaced. The index was grouped by SIZE, so a reader landed on
+   * one country's 256 regional desks and scrolled past every one of them to reach
+   * anywhere else. Size was never what anybody was looking for.
+   */
+  test('regions and countries are alphabetical, never by size', () => {
+    const index = countryIndex(lopsided);
+    expect(index.map((r) => r.region)).toEqual([...index.map((r) => r.region)].sort());
+    for (const r of index) {
+      expect(r.countries.map((c) => c.code)).toEqual([...r.countries.map((c) => c.code)].sort());
+    }
+    // The deepest country is present and is emphatically not first.
+    const asia = index.find((r) => r.region === 'Asia');
+    expect(asia.countries.find((c) => c.code === 'IN').count).toBe(51);
+    expect(index[0].region).not.toBe('Asia');
   });
 
-  test('a code with no name still makes a heading', async () => {
+  test('every channel is counted once, under one region', () => {
+    const index = countryIndex(lopsided);
+    const counted = index.reduce((n, r) => n + r.total, 0);
+    expect(counted).toBe(lopsided.length);
+    const codes = index.flatMap((r) => r.countries.map((c) => c.code));
+    expect(new Set(codes).size).toBe(codes.length);
+  });
+
+  test('a country with no region lands in Elsewhere rather than vanishing', () => {
+    // GS and VR are both in the live directory and neither is in the region map.
+    const index = countryIndex([...lopsided, ch(77, 'Somewhere Else', 'GS')]);
+    const elsewhere = index.find((r) => r.region === 'Elsewhere');
+    expect(elsewhere.countries.map((c) => c.code)).toEqual(['GS']);
+    expect(regionOf('GS')).toBe('Elsewhere');
+    expect(regionOf(null)).toBe('Elsewhere');
+  });
+
+  test('the regions put the obvious countries where a reader expects them', () => {
+    expect(regionOf('UK')).toBe('Europe');
+    expect(regionOf('us')).toBe('Americas');
+    expect(regionOf('IN')).toBe('Asia');
+    expect(regionOf('QA')).toBe('Middle East');
+    expect(regionOf('ZA')).toBe('Africa');
+    expect(regionOf('AU')).toBe('Oceania');
+  });
+
+  test('one country, on its own page', () => {
+    expect(channelsFromCountry(lopsided, 'de').map((c) => c.name)).toEqual(['Tagesschau']);
+    expect(channelsFromCountry(lopsided, 'IN')).toHaveLength(51);
+    expect(channelsFromCountry(lopsided, 'ZZ')).toEqual([]);
+    expect(channelsFromCountry(lopsided, null)).toEqual([]);
+  });
+
+  test('every code the live directory carries has a name, not a code', async () => {
     const { countryName } = await import('../apps/web/src/views/watch.jsx');
-    expect(countryName('DE')).toBe('Germany');
-    expect(countryName('in')).toBe('India');
-    // Better a code than a blank heading.
-    expect(countryName('ZZ')).toBe('ZZ');
+    // The 117 nichedb carries as of 2026-09-25. A code as a heading reads like a
+    // database, which is the thing this page is trying not to be.
+    const LIVE = (
+      'AE AF AL AM AR AU AZ BA BD BE BF BG BJ BO BR BS BY BZ CA CD CH CI CL CM CN CO CR CU CY ' +
+      'CZ DE DO DZ EC EG ES ET FI FR GE GN GR GT HK HN HR HT HU ID IE IL IN IQ IR IS IT JO JP ' +
+      'KE KG KH KR KW KZ LA LB LT LY MA MC MD MK MM MN MO MT MV MX MY NE NG NI NL OM PA PE PH ' +
+      'PK PL PR PS PT PY QA RO RU SA SD SE SG SK SN SV SY TG TH TR TW UA UK US UZ VE VN XK YE ZA'
+    ).split(' ');
+    const bare = LIVE.filter((code) => countryName(code) === code);
+    expect(bare).toEqual([]);
+    // And every one of them has a region.
+    expect(LIVE.filter((code) => regionOf(code) === 'Elsewhere')).toEqual([]);
   });
 });
 
@@ -201,5 +253,77 @@ describe('following a section from the browse page', () => {
     const block = pages.slice(at, pages.indexOf('</ul>', at));
     // The anchor closes before the button opens.
     expect(block.indexOf('</a>')).toBeLessThan(block.indexOf('<FollowButton'));
+  });
+});
+
+describe('matching an article to a stream', () => {
+  /*
+   * Ripped out. `eventName` is a HEADLINE on this brand, so matching channel titles
+   * against its words hunted for a channel called Canada, or Toronto, and offered
+   * that as "where to watch this story". It also crowded the candidate window:
+   * matchTerms takes the first 3,000 rows in position order, so headline words
+   * pushed out the terms that mean something before the ranker saw them.
+   *
+   * What a story has to offer is its desk and the outlet that filed it, which the
+   * public channel box on the same page has always keyed on.
+   */
+  test('the headline is not a search term where events are articles', async () => {
+    const src = await read('../packages/playlists/src/index.js');
+    const at = src.indexOf('export async function ownChannelsForEvent(');
+    const body = src.slice(at, src.indexOf('\n}', at));
+    expect(body).toContain('eventName: brand.eventsArePast ? null : event.name');
+    // The desk and the outlet are still passed, because they are the whole match now.
+    expect(body).toContain('leagueName: event.league_name');
+    expect(body).toContain('home: event.home_name');
+  });
+
+  test('a fixture brand still matches on the event name', async () => {
+    const { matchTerms } = await import('../packages/sports/src/m3u.js');
+    // Nothing about matchTerms changed: a race or a fight card still has its name as
+    // the only handle there is. The decision is at the call site.
+    expect(matchTerms({ eventName: 'Monaco Grand Prix' })).toContain('monaco');
+  });
+
+  /*
+   * And the page's other channel box was always right, so it is untouched: outlet
+   * first, section as the fallback.
+   */
+  test('the public box on an article still keys on the outlet and the desk', async () => {
+    const app = await read('../apps/web/src/app.js');
+    expect(app).toContain('channelsFor({ outlet: event.home_name, section: event.sport, limit: 6 })');
+  });
+});
+
+describe('the watch index is a browse page, not a dump', () => {
+  test('it renders a sample and an index rather than every channel', async () => {
+    const app = await read('../apps/web/src/app.js');
+    const at = app.indexOf("app.get('/watch', async (c) => {");
+    const body = app.slice(at, at + 1400);
+    // 963 rows and 113KB was the old page.
+    expect(body).toContain('pickChannels(all, { limit: 12 })');
+    expect(body).toContain('countryIndex(all)');
+    expect(body).not.toContain('channelsByCountry');
+  });
+
+  test('a country is a path, not a query string, so it can be indexed', async () => {
+    const app = await read('../apps/web/src/app.js');
+    const country = app.indexOf("app.get('/watch/country/:code'");
+    const index = app.indexOf("app.get('/watch', async (c) => {");
+    const byId = app.indexOf("app.get('/watch/:id'");
+    expect(country).toBeGreaterThan(-1);
+    // Before the catch-all id route: relying on 'country' not looking like an id is
+    // the kind of thing that breaks the day somebody adds a slug.
+    expect(country).toBeLessThan(byId);
+    expect(index).toBeGreaterThan(-1);
+    // Two letters only, because this string reaches a page title.
+    expect(app.slice(country, country + 500)).toContain('/^[A-Za-z]{2}$/');
+  });
+
+  test('searching by name is offered, because a thousand channels is a lot to browse', async () => {
+    const view = await read('../apps/web/src/views/watch.jsx');
+    expect(view).toContain('action="/watch"');
+    expect(view).toContain('name="q"');
+    const app = await read('../apps/web/src/app.js');
+    expect(app).toContain("pickChannels(all, { q, limit: 40 })");
   });
 });
