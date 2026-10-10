@@ -4701,7 +4701,9 @@ app.get('/.well-known/security.txt', (c) => {
  */
 app.get('/pfs-footer.css', async (c) => {
   c.header('content-type', 'text/css; charset=utf-8');
-  c.header('cache-control', 'public, max-age=3600');
+  // Short: the package already caches the template for an hour, so a release
+  // reaches readers within that hour plus these five minutes.
+  c.header('cache-control', 'public, max-age=300');
   return c.body(await pfsFooterCss());
 });
 
