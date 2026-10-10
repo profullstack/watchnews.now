@@ -16,6 +16,7 @@ const ROUTE_SERVED = new Map([
   ['/manifest.webmanifest', null], // generated JSON
   ['/sitemap.xml', null], // generated XML
   ['/favicon.ico', 'icons/favicon.ico'], // root alias for the generated icon
+  ['/pfs-footer.css', null], // the shared footer's CSS, from @profullstack/footer's template
 ]);
 
 /*
