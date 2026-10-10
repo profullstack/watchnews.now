@@ -1,5 +1,6 @@
 import { brand, config, dataSource, href, network, Word } from '@tipoff/config';
 import { assetUrl } from '../lib/asset-version.js';
+import { PfsFooter } from '../lib/pfs-footer.js';
 import { serialise, siteGraph } from '../lib/jsonld.js';
 
 /**
@@ -80,6 +81,7 @@ export const Layout = (props) => {
         ) : null}
 
         <link rel="stylesheet" href={assetUrl('styles.css')} />
+        <link rel="stylesheet" href="/pfs-footer.css" />
         {props.canonical ? (
           <link rel="canonical" href={`${config.siteUrl}${props.canonical}`} />
         ) : null}
@@ -307,16 +309,6 @@ export const Layout = (props) => {
             ))}
             . {brand.sources.note}
           </p>
-          <p class="muted">
-            <a href={href.category()}>{brand.words.browse}</a> · <a href="/about">About</a> ·{' '}
-            <a href="/feeds">RSS &amp; calendars</a> · <a href="/api/v1">Public API</a>
-          </p>
-          {/* A privacy policy nobody can find is a privacy policy nobody has. The
-              footer is on every page, which is the only place these three belong. */}
-          <p class="muted">
-            <a href="/contact">Contact</a> · <a href="/privacy">Privacy</a> ·{' '}
-            <a href="/terms">Terms</a>
-          </p>
           {/* The rest of the network, on every page of every site in it.
               The site the reader is already on is named but not linked: a link
               to where you already are is noise, while leaving it out entirely
@@ -335,33 +327,9 @@ export const Layout = (props) => {
             ))}
             {' · '}Data furnished by <a href={dataSource.url}>{dataSource.name}</a>
           </p>
-          {/* The Profullstack webring. `from` is this brand's own apex address: a
-              placeholder there sends every reader to a random member. */}
-          <nav class="webring muted" aria-label="Profullstack webring">
-            <a
-              href={`https://rssamplifier.com/ring/profullstack/previous?from=${encodeURIComponent(`https://${brand.domain}/`)}`}
-              rel="prev"
-              title="Previous site"
-            >
-              {'<<'}
-            </a>{' '}
-            <a href="https://rssamplifier.com/ring/profullstack">Profullstack</a>{' '}
-            <a
-              href={`https://rssamplifier.com/ring/profullstack/next?from=${encodeURIComponent(`https://${brand.domain}/`)}`}
-              rel="next"
-              title="Next site"
-            >
-              {'>>'}
-            </a>{' '}
-            <a
-              href={`https://rssamplifier.com/ring/profullstack/random?from=${encodeURIComponent(`https://${brand.domain}/`)}`}
-              title="Random site"
-              aria-label="Random site"
-            >
-              {'⚄'}
-            </a>
-          </nav>
         </footer>
+        {/* Links, copyright and the Profullstack webring: lib/pfs-footer.js. */}
+        <PfsFooter />
 
         {/* Registers the service worker and wires the push opt-in. Everything on the
           site works without this file -- it only adds notifications. */}

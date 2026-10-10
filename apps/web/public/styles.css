@@ -732,6 +732,19 @@ footer {
   text-align: center;
 }
 
+/* The shared Profullstack footer (links, copyright, webring) sits right under
+   the site's own footer, so it continues it rather than starting a second band:
+   no second rule, and the home-indicator inset moves to it. Its own CSS is
+   /pfs-footer.css; these win on specificity. */
+footer.pfs-footer {
+  --pfs-footer-muted: var(--muted);
+  border-top: 0;
+  padding: 0 0 env(safe-area-inset-bottom, 0px);
+}
+footer:has(+ footer.pfs-footer) {
+  padding-bottom: 0;
+}
+
 .inline {
   display: inline;
 }
