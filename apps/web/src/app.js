@@ -4694,6 +4694,25 @@ app.get('/.well-known/security.txt', (c) => {
 });
 
 /**
+ * OpenWebring descriptor: this brand's membership in the Profullstack ring.
+ * One deploy per brand, so the site and member slug come from that brand.
+ */
+app.get('/.well-known/openwebring.json', (c) => {
+  c.header('cache-control', 'public, max-age=300');
+  return c.json({
+    openwebring: '0.1',
+    site: { url: `https://${brand.domain}/`, name: brand.name },
+    made_by: 'both',
+    rings: [
+      {
+        ring: 'https://rssamplifier.com/ring/profullstack',
+        slug: brand.domain.replaceAll('.', '-'),
+      },
+    ],
+  });
+});
+
+/**
  * The OpenAccess descriptor (logicsrc.com/openaccess): what this site is, where
  * its OAuth 2.1 endpoints are and which scopes it grants, so a catalog that
  * fetches it from our own origin can list the site and link an account.
