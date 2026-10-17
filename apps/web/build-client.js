@@ -52,8 +52,14 @@ const hlsLight = {
   setup(build) {
     // Resolved from the importer, not from here: hls.js is the player's own
     // dependency and Bun's isolated linker does not hoist it to this package.
+    //
+    // The prebuilt UMD file, not hls.light.mjs. Bun 1.3.14 (the Docker image)
+    // bundles the .mjs into a player that requests the playlist and then never
+    // parses it: no MANIFEST_LOADED, no ERROR, a spinner forever on every
+    // channel. Same with hls.js 1.7.2 and 1.7.3, so it is the bundler, not the
+    // library. The UMD file is hls.js's own finished build and plays.
     build.onResolve({ filter: /^hls\.js$/ }, (args) => ({
-      path: Bun.resolveSync('hls.js/dist/hls.light.mjs', dirname(args.importer)),
+      path: Bun.resolveSync('hls.js/dist/hls.light.min.js', dirname(args.importer)),
     }));
   },
 };
