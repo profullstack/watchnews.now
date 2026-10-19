@@ -1,6 +1,6 @@
 import { vapidKeysFromEnv, vapidPublicKeyResponse } from '@profullstack/notifications/server';
 import { createThrottle, presentedCredential } from '@profullstack/throttle';
-import { AI_INDEX_AGENTS, createGateway, HEADLESS_AGENTS, isTrainingAgent } from '@profullstack/x402-gateway';
+import { createGateway, HEADLESS_AGENTS, isTrainingAgent } from '@profullstack/x402-gateway';
 import * as auth from '@tipoff/auth';
 import * as invites from '@tipoff/auth/invites';
 import { brand, config, href, Word } from '@tipoff/config';
@@ -223,7 +223,7 @@ const crawlGateway = createGateway({
    * about two years stale (a rotation pool) are charged by default.
    */
   isPaidAgent: (ua) =>
-    isTrainingAgent(ua) || isSeoAgent(ua) || isTrainingAgent(ua, HEADLESS_AGENTS) || isTrainingAgent(ua, AI_INDEX_AGENTS),
+    isTrainingAgent(ua) || isSeoAgent(ua) || isTrainingAgent(ua, HEADLESS_AGENTS),
   /*
    * Crawlers that do not say who they are.
    *
