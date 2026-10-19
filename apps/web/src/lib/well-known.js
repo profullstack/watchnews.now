@@ -1,3 +1,4 @@
+import { TRAINING_AGENTS } from '@profullstack/x402-gateway/agents';
 import { robotsTxt as gatewayRobots } from '@profullstack/x402-gateway/robots';
 import { brand, config, href, Word } from '@tipoff/config';
 
@@ -50,12 +51,42 @@ export {
   TRAINING_AGENTS as TRAINING,
 } from '@profullstack/x402-gateway/agents';
 
+/**
+ * SEO data crawlers: charged like training crawlers, not read free like search.
+ *
+ * They are not search engines. They copy the site into an index they sell
+ * (backlink graphs, keyword data) and send no readers back. On 2026-10-19 they
+ * were most of the traffic here: DataForSeoBot alone made 20,274 of 46,037
+ * requests by 16:00 UTC from a single address, at a steady ~20 a minute that no
+ * per-minute limit would ever trip, and AhrefsBot another 8,331 from hundreds.
+ * All of them read robots.txt, so naming them there is most of the fix; the
+ * gateway's 402 is for the ones that read it and come anyway.
+ *
+ * Matched case-insensitively as substrings, the way the gateway matches its own.
+ */
+export const SEO_AGENTS = [
+  'DataForSeoBot',
+  'AhrefsBot',
+  'SemrushBot',
+  'MJ12bot',
+  'DotBot',
+  'BLEXBot',
+  'serpstatbot',
+  'Barkrowler',
+];
+
+export const isSeoAgent = (ua = '') => {
+  const lower = ua.toLowerCase();
+  return SEO_AGENTS.some((agent) => lower.includes(agent.toLowerCase()));
+};
+
 export const robotsTxt = () =>
   gatewayRobots({
     siteUrl: config.siteUrl,
     disallow: DISALLOW,
     allow: ALLOW,
     refused: ['AwarioBot'],
+    training: [...TRAINING_AGENTS, ...SEO_AGENTS],
   });
 
 /**

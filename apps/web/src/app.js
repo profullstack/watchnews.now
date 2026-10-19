@@ -1,4 +1,5 @@
 import { vapidKeysFromEnv, vapidPublicKeyResponse } from '@profullstack/notifications/server';
+import { createThrottle, presentedCredential } from '@profullstack/throttle';
 import { createGateway, isTrainingAgent } from '@profullstack/x402-gateway';
 import * as auth from '@tipoff/auth';
 import * as invites from '@tipoff/auth/invites';
@@ -54,7 +55,7 @@ import { pfsFooterCss } from './lib/pfs-footer.js';
 import { pitFooterCss } from './lib/pit-footer.js';
 import { buildFeed } from './lib/rss.js';
 import { SECURITY_HEADERS } from './lib/security-headers.js';
-import { llmsTxt, robotsTxt, securityTxt, skillMd } from './lib/well-known.js';
+import { isSeoAgent, llmsTxt, robotsTxt, securityTxt, skillMd } from './lib/well-known.js';
 import { Feeds } from './views/feeds.jsx';
 import { Contact, Privacy, Terms } from './views/legal.jsx';
 import { LivePage } from './views/live.jsx';
@@ -216,8 +217,9 @@ const crawlGateway = createGateway({
    * fleet of it fetched 8,500 pages here in a day from 104 countries. It is not
    * on any robots list because it reads none, and it self-identifies, which is
    * all the gate needs. A scraper is a crawler that has not paid yet.
+   * SEO data crawlers are charged too; see SEO_AGENTS in lib/well-known.js.
    */
-  isPaidAgent: (ua) => isTrainingAgent(ua) || /lightpanda/i.test(ua),
+  isPaidAgent: (ua) => isTrainingAgent(ua) || isSeoAgent(ua) || /lightpanda/i.test(ua),
   /*
    * Crawlers that do not say who they are.
    *
@@ -271,6 +273,41 @@ app.use('*', async (c, next) => {
   if (answer.status === 402)
     q.recordCrawlDemand(agentName(c.req.header('user-agent'))).catch(() => {});
   return answer;
+});
+
+/*
+ * Everyone else, metered: 100 requests a minute per address on every route,
+ * then a 402 offering the same pass (or 429 where the gateway cannot sell).
+ *
+ * After the gateway, so a crawler that declares itself is charged by its list
+ * rather than counted first. A signed-in reader is not exempt -- that hands an
+ * unmetered site to anyone who signs up -- but the session buys the larger
+ * credentialed budget. The live player pulls a playlist and a segment every few
+ * seconds per channel, and multiview plays several at once, so /watch/ gets
+ * room a page walk never needs. Sign-in stays on the address bucket whatever
+ * header it carries; its own backoff (lib/auth-throttle.js) still runs behind.
+ */
+const sessionIdFrom = (request) =>
+  (request.headers.get('cookie') ?? '')
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${config.session.cookie}=`))
+    ?.slice(config.session.cookie.length + 1) || null;
+
+const throttle = createThrottle({
+  gateway: crawlGateway,
+  credentialFrom: (request) => sessionIdFrom(request) ?? presentedCredential(request.headers),
+  rules: [
+    { path: '/watch/', limit: 300 },
+    { path: '/watch/seg/', limit: 1200 },
+    { path: '/api/auth/', credential: false },
+    { path: '/healthz', open: true },
+  ],
+});
+
+app.use('*', async (c, next) => {
+  const answer = await throttle.handle(c.req.raw);
+  return answer ?? next();
 });
 
 /**
