@@ -44,15 +44,16 @@ import {
 } from '@tipoff/sports';
 import { Hono } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
+import { nextAdvert } from './lib/ads.js';
 import { assetUrl, isCurrentVersion, loadAssetVersions } from './lib/asset-version.js';
 import { attempt, callerAddress, forgive, MISS, VIEW } from './lib/auth-throttle.js';
 import { buildCalendar } from './lib/ics.js';
 import { agentName, leaderboard } from './lib/leaderboard.js';
 import { MAX_TILES, parseChannelIds } from './lib/multiview.js';
+import { pitFooterCss } from './lib/pit-footer.js';
 import { buildFeed } from './lib/rss.js';
 import { SECURITY_HEADERS } from './lib/security-headers.js';
 import { llmsTxt, robotsTxt, securityTxt, skillMd } from './lib/well-known.js';
-import { pfsFooterCss } from './lib/pfs-footer.js';
 import { Feeds } from './views/feeds.jsx';
 import { Contact, Privacy, Terms } from './views/legal.jsx';
 import { LivePage } from './views/live.jsx';
@@ -81,7 +82,6 @@ import { Inbox, PeopleListPage, ProfilePage, Thread } from './views/people.jsx';
 import { InvitePage, PremiumPage } from './views/premium.jsx';
 import { RadioPage, RadioSidesFragment } from './views/radio.jsx';
 import { WatchChannel, WatchCountry, WatchIndex } from './views/watch.jsx';
-import { nextAdvert } from './lib/ads.js';
 
 export const app = new Hono();
 
@@ -4695,16 +4695,15 @@ app.get('/.well-known/security.txt', (c) => {
 });
 
 /**
- * The shared footer's CSS (lib/pfs-footer.js). Served from here rather than
- * inline because the CSP allows no inline styles; it follows the package's
- * @latest template like the footer markup does.
+ * The pit.world global footer's CSS (lib/pit-footer.js). Served from here rather
+ * than inline because the CSP allows no inline styles; it follows the snippet
+ * the footer markup comes from.
  */
-app.get('/pfs-footer.css', async (c) => {
+app.get('/pit-footer.css', async (c) => {
   c.header('content-type', 'text/css; charset=utf-8');
-  // Short: the package already caches the template for an hour, so a release
-  // reaches readers within that hour plus these five minutes.
+  // Short: the snippet is cached for an hour already.
   c.header('cache-control', 'public, max-age=300');
-  return c.body(await pfsFooterCss());
+  return c.body(await pitFooterCss());
 });
 
 /**
