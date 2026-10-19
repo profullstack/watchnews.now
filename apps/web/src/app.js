@@ -1,6 +1,6 @@
 import { vapidKeysFromEnv, vapidPublicKeyResponse } from '@profullstack/notifications/server';
 import { createThrottle, presentedCredential } from '@profullstack/throttle';
-import { createGateway, isTrainingAgent } from '@profullstack/x402-gateway';
+import { createGateway, HEADLESS_AGENTS, isTrainingAgent } from '@profullstack/x402-gateway';
 import * as auth from '@tipoff/auth';
 import * as invites from '@tipoff/auth/invites';
 import { brand, config, href, Word } from '@tipoff/config';
@@ -218,8 +218,11 @@ const crawlGateway = createGateway({
    * on any robots list because it reads none, and it self-identifies, which is
    * all the gate needs. A scraper is a crawler that has not paid yet.
    * SEO data crawlers are charged too; see SEO_AGENTS in lib/well-known.js.
+   * Since gateway 0.8.0 every self-declared headless browser (HEADLESS_AGENTS)
+   * is charged, Amazonbot is on the training list, and desktop browser strings
+   * about two years stale (a rotation pool) are charged by default.
    */
-  isPaidAgent: (ua) => isTrainingAgent(ua) || isSeoAgent(ua) || /lightpanda/i.test(ua),
+  isPaidAgent: (ua) => isTrainingAgent(ua) || isSeoAgent(ua) || isTrainingAgent(ua, HEADLESS_AGENTS),
   /*
    * Crawlers that do not say who they are.
    *
