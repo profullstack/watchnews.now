@@ -811,6 +811,26 @@ export const config = {
    * value frozen when the module first loads cannot be changed afterwards, which
    * makes it untestable.
    */
+  /**
+   * The display ad slot at CrawlProof, for the one banner unit a page may carry.
+   *
+   * Separate from AD_SLOT, which is the video/audio break slot the players ask
+   * for: different formats, so a different slot. No default, for the same
+   * reason as the analytics id above -- an id hardcoded here travels with a
+   * clone and the sibling starts serving against this site's inventory.
+   */
+  ads: {
+    get slot() {
+      return opt('CRAWLPROOF_AD_SLOT');
+    },
+    get origin() {
+      return opt('AD_ORIGIN', 'https://crawlproof.com');
+    },
+    get enabled() {
+      return Boolean(this.slot);
+    },
+  },
+
   analytics: {
     get crawlproofSite() {
       return opt('CRAWLPROOF_SITE_ID');
