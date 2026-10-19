@@ -2118,6 +2118,10 @@ export const EventPage = ({
         <li aria-current="page">{event.short_name ?? event.name}</li>
       </ol>
 
+      {/* The page's one ad, at the top of the content rather than pressed
+          against the footer. */}
+      <Ad />
+
       {/* One or the other. A story has no score to refresh and no sides to draw,
           so the scoreboard is not rendered at all rather than rendered and
           hidden -- hiding it would leave the crest markup and the word "Final" in
@@ -2693,8 +2697,6 @@ export const EventPage = ({
           </ul>
         )}
       </section>
-
-      <Ad />
     </Layout>
   );
 };

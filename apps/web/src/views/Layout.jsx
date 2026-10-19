@@ -1,7 +1,7 @@
 import { brand, config, dataSource, href, network, Word } from '@tipoff/config';
 import { assetUrl } from '../lib/asset-version.js';
-import { PfsFooter } from '../lib/pfs-footer.js';
 import { serialise, siteGraph } from '../lib/jsonld.js';
+import { PitFooter } from '../lib/pit-footer.js';
 
 /**
  * The single HTML shell. Everything renders through here, including the signed-out
@@ -81,7 +81,7 @@ export const Layout = (props) => {
         ) : null}
 
         <link rel="stylesheet" href={assetUrl('styles.css')} />
-        <link rel="stylesheet" href="/pfs-footer.css" />
+        <link rel="stylesheet" href="/pit-footer.css" />
         {props.canonical ? (
           <link rel="canonical" href={`${config.siteUrl}${props.canonical}`} />
         ) : null}
@@ -290,13 +290,16 @@ export const Layout = (props) => {
 
         <footer>
           <p>
-            {brand.name} is free. Times are shown in your own time zone (
-            <span data-tz-label>your device</span>).
+            {brand.name} is free; times are in your own time zone (
+            <span data-tz-label>your device</span>) ·{' '}
+            <a href={href.category()}>{brand.words.browse}</a> · <a href="/about">About</a> ·{' '}
+            <a href="/feeds">RSS &amp; calendars</a> · <a href="/api/v1">API</a> ·{' '}
+            <a href="/contact">Contact</a> · <a href="/privacy">Privacy</a> ·{' '}
+            <a href="/terms">Terms</a>
           </p>
-          {/* Where the rows actually came from, per brand. This used to name ESPN
-            and a tennis API on every site, which was wrong on the two that have
-            never called either -- and a credit that names the wrong upstream is
-            worse than no credit, because a reader takes it as a fact. */}
+          {/* Where the rows actually came from, per brand (a credit that names the
+            wrong upstream is worse than none), then the sibling sites: named on
+            every one of them, linked except for the one the reader is on. */}
           <p class="muted">
             {brand.sources.lead}{' '}
             {brand.sources.list.map((s, i) => (
@@ -308,16 +311,9 @@ export const Layout = (props) => {
               </>
             ))}
             . {brand.sources.note}
-          </p>
-          {/* The rest of the network, on every page of every site in it.
-              The site the reader is already on is named but not linked: a link
-              to where you already are is noise, while leaving it out entirely
-              would make each footer a different list and lose the fact that
-              these three are one shop. */}
-          <p class="muted">
-            {network.map((site, i) => (
+            {network.map((site) => (
               <>
-                {i ? ' · ' : null}
+                {' · '}
                 {site.domain === brand.domain ? (
                   <span aria-current="true">{site.name}</span>
                 ) : (
@@ -328,8 +324,6 @@ export const Layout = (props) => {
             {' · '}Data furnished by <a href={dataSource.url}>{dataSource.name}</a>
           </p>
         </footer>
-        {/* Links, copyright and the Profullstack webring: lib/pfs-footer.js. */}
-        <PfsFooter />
 
         {/* Registers the service worker and wires the push opt-in. Everything on the
           site works without this file -- it only adds notifications. */}
@@ -337,6 +331,8 @@ export const Layout = (props) => {
         <script src={assetUrl('app.js')} defer />
         {/* One page needs a script of its own; the rest must not carry it. */}
         {props.script ? <script src={props.script} defer /> : null}
+        {/* The pit.world global footer, last in <body>: lib/pit-footer.js. */}
+        <PitFooter />
       </body>
     </html>
   );
