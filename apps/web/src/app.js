@@ -50,6 +50,7 @@ import { attempt, callerAddress, forgive, MISS, VIEW } from './lib/auth-throttle
 import { buildCalendar } from './lib/ics.js';
 import { agentName, leaderboard } from './lib/leaderboard.js';
 import { MAX_TILES, parseChannelIds } from './lib/multiview.js';
+import { pfsFooterCss } from './lib/pfs-footer.js';
 import { pitFooterCss } from './lib/pit-footer.js';
 import { buildFeed } from './lib/rss.js';
 import { SECURITY_HEADERS } from './lib/security-headers.js';
@@ -4692,6 +4693,17 @@ app.get('/skill.md', (c) => {
 app.get('/.well-known/security.txt', (c) => {
   c.header('content-type', 'text/plain; charset=utf-8');
   return c.body(securityTxt());
+});
+
+/**
+ * The shared footer's CSS (lib/pfs-footer.js). Served from here rather than
+ * inline because the CSP allows no inline styles; it follows the package's
+ * @latest template like the footer markup does.
+ */
+app.get('/pfs-footer.css', async (c) => {
+  c.header('content-type', 'text/css; charset=utf-8');
+  c.header('cache-control', 'public, max-age=300');
+  return c.body(await pfsFooterCss());
 });
 
 /**
