@@ -1,6 +1,7 @@
 import { brand, config, dataSource, href, network, Word } from '@tipoff/config';
 import { assetUrl } from '../lib/asset-version.js';
 import { serialise, siteGraph } from '../lib/jsonld.js';
+import { PfsFooter } from '../lib/pfs-footer.js';
 import { PitFooter } from '../lib/pit-footer.js';
 
 /**
@@ -81,6 +82,7 @@ export const Layout = (props) => {
         ) : null}
 
         <link rel="stylesheet" href={assetUrl('styles.css')} />
+        <link rel="stylesheet" href="/pfs-footer.css" />
         <link rel="stylesheet" href="/pit-footer.css" />
         {props.canonical ? (
           <link rel="canonical" href={`${config.siteUrl}${props.canonical}`} />
@@ -324,6 +326,8 @@ export const Layout = (props) => {
             {' · '}Data furnished by <a href={dataSource.url}>{dataSource.name}</a>
           </p>
         </footer>
+        {/* Copyright and the Profullstack webring: lib/pfs-footer.js. */}
+        <PfsFooter />
 
         {/* Registers the service worker and wires the push opt-in. Everything on the
           site works without this file -- it only adds notifications. */}
