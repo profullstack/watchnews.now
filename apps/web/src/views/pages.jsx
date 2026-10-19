@@ -2254,6 +2254,11 @@ export const EventPage = ({
 
       {done && recap ? <Recap event={event} recap={recap} /> : null}
 
+      {/* A seam after the fixture's facts and its story, with the watch options,
+          follow and comments still below: in the page, never at the bottom
+          pressed against the footer. */}
+      <Ad />
+
       <BroadcastMarkets
         event={event}
         marketChannels={marketChannels}
@@ -2693,8 +2698,6 @@ export const EventPage = ({
           </ul>
         )}
       </section>
-
-      <Ad />
     </Layout>
   );
 };
