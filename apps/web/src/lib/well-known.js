@@ -1,4 +1,4 @@
-import { TRAINING_AGENTS } from '@profullstack/x402-gateway/agents';
+import { AI_INDEX_AGENTS, TRAINING_AGENTS } from '@profullstack/x402-gateway/agents';
 import { robotsTxt as gatewayRobots } from '@profullstack/x402-gateway/robots';
 import { brand, config, href, Word } from '@tipoff/config';
 
@@ -86,7 +86,7 @@ export const robotsTxt = () =>
     disallow: DISALLOW,
     allow: ALLOW,
     refused: ['AwarioBot'],
-    training: [...TRAINING_AGENTS, ...SEO_AGENTS],
+    training: [...TRAINING_AGENTS, ...SEO_AGENTS, ...AI_INDEX_AGENTS],
   });
 
 /**

@@ -1,6 +1,6 @@
 import { vapidKeysFromEnv, vapidPublicKeyResponse } from '@profullstack/notifications/server';
 import { createThrottle, presentedCredential } from '@profullstack/throttle';
-import { createGateway, HEADLESS_AGENTS, isTrainingAgent } from '@profullstack/x402-gateway';
+import { AI_INDEX_AGENTS, createGateway, HEADLESS_AGENTS, isTrainingAgent } from '@profullstack/x402-gateway';
 import * as auth from '@tipoff/auth';
 import * as invites from '@tipoff/auth/invites';
 import { brand, config, href, Word } from '@tipoff/config';
@@ -222,7 +222,8 @@ const crawlGateway = createGateway({
    * is charged, Amazonbot is on the training list, and desktop browser strings
    * about two years stale (a rotation pool) are charged by default.
    */
-  isPaidAgent: (ua) => isTrainingAgent(ua) || isSeoAgent(ua) || isTrainingAgent(ua, HEADLESS_AGENTS),
+  isPaidAgent: (ua) =>
+    isTrainingAgent(ua) || isSeoAgent(ua) || isTrainingAgent(ua, HEADLESS_AGENTS) || isTrainingAgent(ua, AI_INDEX_AGENTS),
   /*
    * Crawlers that do not say who they are.
    *
