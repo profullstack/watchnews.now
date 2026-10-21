@@ -583,9 +583,7 @@ export const Landing = ({ user, today, watch = [] }) => (
       ) : null}
     </section>
 
-    {/* A seam between the stories and the live channels: one reader has
-        finished one thing and not started the next. */}
-    <Ad />
+    {/* The homepage carries no ad unit. */}
 
     {/* Under the stories, not above them: somebody arriving wants to know what
         happened, and this is the answer to the question they ask next. It was
