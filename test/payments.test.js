@@ -11,7 +11,7 @@ import { createHmac } from 'node:crypto';
  * module imported config first -- the thing that made these very tests a coin flip
  * decided by the rest of the suite -- is now three explicit lines.
  */
-const { configurePayments, createCheckout, verifyWebhook, settleWebhook } = await import(
+const { configurePayments, verifyWebhook, settleWebhook, readWebhook } = await import(
   '../packages/payments/src/index.js'
 );
 
@@ -23,7 +23,7 @@ configurePayments({
   },
   coinpay: {
     webhookSecret: 'whsec_test_secret',
-    apiKey: 'cp_test_' + '0'.repeat(32),
+    apiKey: `cp_test_${'0'.repeat(32)}`,
     businessId: 'biz_test',
     baseUrl: 'https://coinpayportal.example',
     enabled: true,
@@ -87,27 +87,44 @@ describe('settlement gating', () => {
     return fn(tx);
   };
 
-  const settleWith = async (status) => {
+  /*
+   * The envelope CoinPay actually sends. These tests used to pass the flat shape
+   * -- { id, status, metadata } -- which is the same wrong assumption the code
+   * made, so they confirmed the bug instead of finding it. Settlement is now
+   * exercised through the real nested body by default.
+   */
+  const nested = (status) => ({
+    id: `evt_pay_1_${Math.floor(Date.now() / 1000)}`,
+    type: `payment.${status || 'unknown'}`,
+    data: {
+      payment_id: 'pay_1',
+      status,
+      amount: 5,
+      amount_usd: 5,
+      metadata: { user_id: 'u1', event_id: '5' },
+    },
+    created_at: new Date().toISOString(),
+    business_id: 'biz_test',
+  });
+
+  const settleWith = async (status, body = nested(status)) => {
     const calls = [];
     configurePayments({
       sql: fakeSql,
       coinpay: { webhookSecret: 'whsec_test_secret', enabled: true },
       siteUrl: 'https://example.test',
     });
-    const result = await settleWebhook(
-      { id: 'pay_1', status, metadata: { user_id: 'u1', event_id: '5' } },
-      {
-        grant: async () => {
-          calls.push(status);
-          return { ok: true };
-        },
+    const result = await settleWebhook(body, {
+      grant: async () => {
+        calls.push(status);
+        return { ok: true };
       },
-    );
+    });
     return { result, granted: calls.length };
   };
 
   test('a settled status reaches the grant', async () => {
-    for (const good of ['paid', 'completed', 'confirmed', 'succeeded', 'settled']) {
+    for (const good of ['paid', 'completed', 'confirmed', 'forwarded', 'succeeded', 'settled']) {
       const { result, granted } = await settleWith(good);
       expect(granted).toBe(1);
       expect(result.granted).toBe(true);
@@ -133,122 +150,79 @@ describe('settlement gating', () => {
     }
   });
 
+  /*
+   * The regression this whole change exists for. Before it, a genuine
+   * payment.confirmed threw "webhook missing metadata" and nothing ever settled.
+   */
+  test('a real nested confirmation settles', async () => {
+    const { result, granted } = await settleWith('confirmed');
+    expect(granted).toBe(1);
+    expect(result.settled).toBe(true);
+  });
+
+  test('the older flat shape still settles', async () => {
+    // The test-webhook sender has not moved to the nested envelope.
+    const { result, granted } = await settleWith('paid', {
+      id: 'pay_1',
+      status: 'paid',
+      metadata: { user_id: 'u1', event_id: '5' },
+    });
+    expect(granted).toBe(1);
+    expect(result.settled).toBe(true);
+  });
+
+  test('the reference is the payment, never the event id', () => {
+    const body = nested('confirmed');
+    const { ref, status, meta, event } = readWebhook(body);
+    expect(ref).toBe('pay_1');
+    // The bug in one line: evt_... is what `payload.id` used to return.
+    expect(ref).not.toBe(body.id);
+    expect(status).toBe('confirmed');
+    expect(meta.user_id).toBe('u1');
+    expect(event).toBe('payment.confirmed');
+  });
+
+  test('a nested failure is still refused', async () => {
+    // Reading the envelope right must not weaken the gate behind it.
+    const { result, granted } = await settleWith('failed');
+    expect(granted).toBe(0);
+    expect(result.settled).toBe(false);
+  });
+
+  test('a settled payment we never checked out is answered, not thrown', async () => {
+    // No row of ours means nothing recorded what was charged. It used to reach the
+    // grant with an undefined payment and answer 500, which CoinPay retries for a day.
+    const noRow = () => [];
+    noRow.begin = async (fn) => fn(() => []);
+    configurePayments({
+      sql: noRow,
+      coinpay: { webhookSecret: 'whsec_test_secret', enabled: true },
+      siteUrl: 'https://example.test',
+    });
+    let called = 0;
+    const result = await settleWebhook(nested('forwarded'), {
+      grant: async () => {
+        called++;
+        return { ok: true };
+      },
+    });
+    expect(called).toBe(0);
+    expect(result).toMatchObject({
+      settled: false,
+      granted: false,
+      reason: 'unknown payment pay_1',
+    });
+  });
+
   test('the list of statuses that count as paid has not quietly grown', async () => {
     const src = await Bun.file(
       new URL('../packages/payments/src/index.js', import.meta.url).pathname,
     ).text();
     const listed = src.slice(src.indexOf('const SETTLED = new Set('));
     expect(listed.slice(0, listed.indexOf(']'))).toContain(
-      "'paid', 'completed', 'confirmed', 'succeeded', 'settled'",
+      "'paid', 'completed', 'confirmed', 'forwarded', 'succeeded', 'settled'",
     );
   });
 });
 
-describe('createCheckout', () => {
-  /*
-   * The real fetch, put back after every test.
-   *
-   * bun:test runs every file in one process, so a global left swapped out is not
-   * scoped to this file -- it is the fetch every later test gets. Leaving it
-   * clobbered took out 26 unrelated tests across the espn adapter, the roster
-   * sweep and the stream proxy, none of which have anything to do with payments,
-   * and each of which failed in a way that pointed at itself rather than here.
-   */
-  const realFetch = globalThis.fetch;
-  afterEach(() => {
-    globalThis.fetch = realFetch;
-  });
-
-  const capture = () => {
-    const calls = [];
-    globalThis.fetch = async (url, opts) => {
-      calls.push({ url, body: JSON.parse(opts.body) });
-      return new Response(JSON.stringify({ success: true, payment: { id: 'pay_9' } }), {
-        status: 201,
-        headers: { 'content-type': 'application/json' },
-      });
-    };
-    const rows = [];
-    const sql = (...args) => {
-      rows.push(args);
-      return [];
-    };
-    configurePayments({
-      sql,
-      coinpay: {
-        enabled: true,
-        apiKey: 'cp_test_x',
-        businessId: 'biz_1',
-        baseUrl: 'https://pay.example',
-        webhookSecret: 'whsec_test_secret',
-      },
-      siteUrl: 'https://example.test',
-    });
-    return calls;
-  };
-
-  const base = {
-    user: { id: 'u1' },
-    amountCents: 500,
-    description: 'a thing',
-    blockchain: 'BTC',
-    payTo: 'bc1qexample',
-  };
-
-  /*
-   * The payee belongs on the BUSINESS, not in every call.
-   *
-   * merchant_wallet_address is an override. Omitted, the upstream forwards to the
-   * business's own wallet for that chain, falls back to the account-global one,
-   * and refuses the payment with "No <coin> wallet configured for this business"
-   * if neither exists — it does NOT quietly settle somewhere else. A single
-   * address in configuration could only ever be right for one chain anyway.
-   */
-  test('omits the payee so the business wallet resolves per chain', async () => {
-    const calls = capture();
-    await createCheckout({ ...base, payTo: undefined });
-    expect(calls[0].body).not.toHaveProperty('merchant_wallet_address');
-  });
-
-  test('and sends one only when overriding to a third party', async () => {
-    const calls = capture();
-    await createCheckout(base);
-    expect(calls[0].body.merchant_wallet_address).toBe('bc1qexample');
-  });
-
-  /* The upstream refuses a crypto payment with no chain: "Invalid or missing
-     cryptocurrency type". Failing at the call site beats failing at the moment a
-     buyer presses pay. */
-  test('a crypto checkout must name its chain', async () => {
-    capture();
-    expect(createCheckout({ ...base, blockchain: undefined })).rejects.toThrow(/blockchain/);
-  });
-
-  test('a card checkout does not need one', async () => {
-    const calls = capture();
-    await createCheckout({ ...base, blockchain: undefined, paymentMethod: 'card' });
-    expect(calls[0].body.payment_method).toBe('card');
-  });
-
-  /*
-   * The response is { success, payment: {...} }. Reading body.id finds nothing, so
-   * the pending row would be written under an undefined reference and the webhook
-   * could never match it.
-   */
-  test('takes the reference from the nested payment', async () => {
-    capture();
-    const { paymentRef } = await createCheckout(base);
-    expect(paymentRef).toBe('pay_9');
-  });
-
-  /*
-   * There is no generic checkout_url field. A card payment returns a Stripe
-   * session; a crypto one returns an address, and the page that renders it is the
-   * hosted checkout.
-   */
-  test('sends a crypto buyer to the hosted checkout page', async () => {
-    capture();
-    const { checkoutUrl } = await createCheckout(base);
-    expect(checkoutUrl).toBe('https://pay.example/pay/pay_9');
-  });
-});
+// createCheckout (checkout sessions) is covered by payments-checkout-sessions.test.js.
