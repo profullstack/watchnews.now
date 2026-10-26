@@ -14,7 +14,7 @@
     "@tipoff/notify": "workspace:*",
     "@tipoff/playlists": "workspace:*",
     "@tipoff/sports": "workspace:*",
-    "bullmq": "^5.63.0",
-    "ioredis": "^5.9.0"
+    "bullmq": "^6.4.2",
+    "ioredis": "^6.0.0"
   }
 }
