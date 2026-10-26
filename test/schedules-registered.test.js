@@ -19,6 +19,16 @@ const dir = new URL('../packages/queue/src/', import.meta.url).pathname;
 const INDEX = readFileSync(`${dir}index.js`, 'utf8');
 const WORKERS = readFileSync(`${dir}workers.js`, 'utf8');
 
+/** The body of scheduleSpecs(): one `[queues.x, id, repeat, name, data]` row per job scheduler. */
+const SPECS = INDEX.slice(
+  INDEX.indexOf('export function scheduleSpecs'),
+  INDEX.indexOf('export async function installSchedules'),
+);
+
+/** Enqueued by a job scheduler row, or by a plain add() (boot kicks, on-demand jobs). */
+const produces = (key) =>
+  new RegExp(`\\[\\s*queues\\.${key},`).test(SPECS) || INDEX.includes(`queues.${key}.add(`);
+
 /** The keys of the QUEUES table, e.g. scan, sync, live, plays, playlists. */
 function queueKeys() {
   const block = INDEX.slice(INDEX.indexOf('export const QUEUES'), INDEX.indexOf('const defaults'));
@@ -41,7 +51,7 @@ describe('every queue is wired at both ends', () => {
 
     test(`${key}: something enqueues to it`, () => {
       if (scheduled) return;
-      expect(INDEX).toContain(`queues.${key}.add(`);
+      expect(produces(key)).toBe(true);
     });
 
     test(`${key}: something consumes it`, () => {
@@ -51,8 +61,9 @@ describe('every queue is wired at both ends', () => {
 });
 
 describe('the refresh that went missing', () => {
-  test('the playlist repeatable is registered', () => {
-    expect(INDEX).toContain('queues.playlists.add(');
+  test('the playlist scheduler is registered', () => {
+    expect(produces('playlists')).toBe(true);
+    expect(INDEX).toContain('upsertJobScheduler(');
   });
 
   test('its interval comes from configuration, not a literal', () => {
@@ -62,8 +73,8 @@ describe('the refresh that went missing', () => {
   });
 
   test('its queue is cleared on boot like the others, so the interval can change', () => {
-    // BullMQ keys a repeatable by its pattern; changing the interval without
-    // removing the old one leaves both running forever.
+    // Schedulers the code no longer names are removed on boot, so a renamed or
+    // dropped schedule does not keep running forever.
     // Searched forward FROM the loop, not from the start of the file: the first
     // `])` in the module belongs to something else entirely.
     const from = INDEX.indexOf('for (const q of [');

@@ -48,13 +48,65 @@ export const queues = Object.fromEntries(
 );
 
 /**
- * Repeatable jobs are declared, not accumulated.
+ * The recurring jobs, as BullMQ job schedulers: `[queue, id, repeat, name, data]`.
  *
- * BullMQ keys a repeatable by its pattern, so changing an interval leaves the old
- * schedule running forever unless the previous one is removed. Clearing them on
- * every boot makes the code the single source of truth for what is scheduled.
+ * BullMQ 6 dropped repeatable jobs: `add(name, data, { repeat })` no longer
+ * schedules anything, and getRepeatableJobs/removeRepeatableByKey are gone.
+ * Job schedulers (upsertJobScheduler) are the replacement, and exist in 5.x too.
+ *
+ * - live-passes: lapsed passes come down within the grace window plus a quarter
+ *   of an hour. Cheap: one query that is usually empty.
+ * - scan: a 1-minute reminder needs sub-minute resolution to land on time.
+ * - live: scores. Only leagues with a game actually in progress are fetched, so
+ *   this is a handful of requests a minute rather than a sweep -- without it a
+ *   live score is as stale as the last full sync, which was measured at 69 minutes.
+ * - plays: slower than scores on purpose: a summary is ~500KB against a
+ *   scoreboard's few KB, and every one goes through the metered proxy.
+ * - playlists: readers' own channel lists. The provider rewrites its numbered
+ *   event slots close to kickoff, so a list imported an hour ago has the wrong
+ *   titles by the time the game starts. There is no cheap poll to lean on (a full
+ *   200 on If-Modified-Since, no ETag), so each list carries its own
+ *   refresh_after and this tick only picks up what is genuinely due. This line
+ *   once went missing in a rebase and nothing noticed: a consumer with no
+ *   producer is silent, not broken.
+ * - sync-near: tonight and tomorrow, for the leagues that actually have a game
+ *   then. Measured 2026-08-21: 74 of 359 leagues, about a tenth of a full sweep,
+ *   so it can run often enough to catch a postponement hours before kickoff.
+ * - sync-all / sync-catalogue: the whole catalogue and the full horizon, once a
+ *   day. The expensive one -- two requests per league across 359 leagues.
+ */
+export function scheduleSpecs() {
+  return [
+    [queues.livePasses, 'live-passes', { every: 15 * 60_000 }, 'live-pass-reconcile', {}],
+    [queues.scan, 'scan', { every: 30_000 }, 'scan', {}],
+    [queues.live, 'live', { every: 60_000 }, 'live-scores', {}],
+    [queues.plays, 'plays', { every: 120_000 }, 'live-plays', {}],
+    [
+      queues.playlists,
+      'playlists',
+      { every: Math.max(1, config.playlists.refreshMinutes) * 60_000 },
+      'playlist-refresh',
+      {},
+    ],
+    [queues.sync, 'sync-near', { every: 3 * 3600_000 }, 'sync-near', { kind: 'near' }],
+    [queues.sync, 'sync-all', { every: 24 * 3600_000 }, 'sync-all', { kind: 'all' }],
+    [
+      queues.sync,
+      'sync-catalogue',
+      { every: 24 * 3600_000 },
+      'sync-catalogue',
+      { kind: 'catalogue' },
+    ],
+  ];
+}
+
+/**
+ * Schedules are declared, not accumulated: every scheduler the code does not
+ * name is removed on boot (which also clears 5.x repeatables left in Redis),
+ * and the rest are upserted, so the code is the single source of truth.
  */
 export async function installSchedules({ log = console.log } = {}) {
+  const specs = scheduleSpecs();
   for (const q of [
     queues.scan,
     queues.sync,
@@ -63,77 +115,22 @@ export async function installSchedules({ log = console.log } = {}) {
     queues.playlists,
     queues.livePasses,
   ]) {
-    for (const r of await q.getRepeatableJobs()) await q.removeRepeatableByKey(r.key);
+    const wanted = new Set(specs.filter(([sq]) => sq === q).map(([, id]) => id));
+    for (const s of await q.getJobSchedulers()) {
+      const id = s.id ?? s.key;
+      if (id && !wanted.has(id)) await q.removeJobScheduler(id);
+    }
   }
-
-  // Lapsed passes come down within the grace window plus a quarter of an hour.
-  // Cheap: one query that is usually empty.
-  await queues.livePasses.add(
-    'live-pass-reconcile',
-    {},
-    { repeat: { every: 15 * 60_000 }, jobId: 'live-passes' },
-  );
-
-  // A 1-minute reminder needs sub-minute resolution to land on time.
-  await queues.scan.add('scan', {}, { repeat: { every: 30_000 }, jobId: 'scan' });
-
-  // Scores. Only leagues with a game actually in progress are fetched, so this is
-  // a handful of requests a minute rather than a sweep -- without it a live score
-  // is as stale as the last full sync, which was measured at 69 minutes.
-  await queues.live.add('live-scores', {}, { repeat: { every: 60_000 }, jobId: 'live' });
-
-  // Slower than scores on purpose: a summary is ~500KB against a scoreboard's few
-  // KB, and every one goes through the metered proxy.
-  await queues.plays.add('live-plays', {}, { repeat: { every: 120_000 }, jobId: 'plays' });
-
-  /*
-   * Readers' own channel lists.
-   *
-   * The provider rewrites its numbered event slots close to kickoff, so a list
-   * imported an hour ago has the wrong titles by the time the game starts and the
-   * match finds nothing. There is no cheap poll to lean on: this provider answers
-   * If-Modified-Since with a full 200 and sends no ETag, so every fetch is the
-   * whole file. Each list therefore carries its own refresh_after and this tick
-   * only picks up what is genuinely due; the interval is PLAYLIST_REFRESH_MINUTES
-   * rather than a constant here.
-   *
-   * This line went missing in a rebase and nothing noticed, because the worker on
-   * the other end stayed registered: a consumer with no producer is silent, not
-   * broken. It is the reason the refresh never ran.
-   */
-  await queues.playlists.add(
-    'playlist-refresh',
-    {},
-    {
-      repeat: { every: Math.max(1, config.playlists.refreshMinutes) * 60_000 },
-      jobId: 'playlists',
-    },
-  );
-
-  // Tonight and tomorrow, for the leagues that actually have a game then. Measured
-  // 2026-08-21: 74 of 359 leagues, one request each without the roster -- about a
-  // tenth of a full sweep, so it can run often enough to catch a postponement or a
-  // late broadcast assignment hours before kickoff rather than at the next sweep.
-  await queues.sync.add('sync-near', { kind: 'near' }, { repeat: { every: 3 * 3600_000 } });
-
-  // The whole catalogue and the full horizon, once a day. This is the expensive one
-  // -- two requests per league across 359 leagues -- and what it uniquely covers
-  // (rosters, display names, fixtures beyond the near window) moves on a scale of
-  // days, not hours. It ran every 6h before the near pass existed to carry the
-  // freshness that was really being paid for.
-  await queues.sync.add('sync-all', { kind: 'all' }, { repeat: { every: 24 * 3600_000 } });
-  await queues.sync.add(
-    'sync-catalogue',
-    { kind: 'catalogue' },
-    { repeat: { every: 24 * 3600_000 } },
-  );
+  for (const [q, id, repeat, name, data] of specs) {
+    await q.upsertJobScheduler(id, repeat, { name, data });
+  }
 
   // Two problems solved by the same check.
   //
-  // First, a repeatable job runs one interval from NOW, not immediately -- so a
+  // First, a scheduled job runs one interval from NOW, not immediately -- so a
   // fresh database would serve an empty calendar for a full day.
   //
-  // Second, and less obvious: clearing and re-adding the repeatables above resets
+  // Second, and less obvious: clearing and re-adding the old repeatables reset
   // their timers, so on a day of frequent deploys the six-hour sync is pushed six
   // hours into the future every time and never actually fires.
   //
