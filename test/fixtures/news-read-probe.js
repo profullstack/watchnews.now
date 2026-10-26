@@ -28,6 +28,8 @@ const sql = async (parts, ...values) => {
     )
   ).rows;
 };
+// postgres.js / Bun SQL's raw-text form, which @profullstack/profile's store uses.
+sql.unsafe = async (text, params = []) => (await db.query(text, params)).rows;
 mock.module(new URL('../../packages/db/src/index.js', import.meta.url).pathname, () => ({ sql }));
 mock.module(new URL('../../packages/queue/src/index.js', import.meta.url).pathname, () => ({
   connection: {},
