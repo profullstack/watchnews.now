@@ -18,6 +18,7 @@ const ROUTE_SERVED = new Map([
   ['/favicon.ico', 'icons/favicon.ico'], // root alias for the generated icon
   ['/pfs-footer.css', null], // the shared footer's CSS, from @profullstack/footer's template
   ['/pit-footer.css', null], // the pit.world global footer's CSS, lifted out of its snippet
+  ['/vendor-profile.js', null], // @profullstack/profile's PROFILE_ENHANCE_SCRIPT export
 ]);
 
 /*

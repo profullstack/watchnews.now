@@ -12,6 +12,7 @@
     "@profullstack/footer": "latest",
     "@profullstack/notifications": "^0.1.0",
     "@profullstack/player": "0.16.0",
+    "@profullstack/profile": "0.1.1",
     "@profullstack/throttle": "^0.3.3",
     "@profullstack/x402-gateway": "^0.11.0",
     "@simplewebauthn/browser": "^13.2.0",
