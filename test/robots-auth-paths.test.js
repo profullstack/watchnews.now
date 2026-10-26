@@ -194,6 +194,6 @@ describe('training crawlers that come in anyway are sold a pass', () => {
 
   test('the maps stay readable, so a crawler can find the cheaper way in', async () => {
     const src = await readFile(APP, 'utf8');
-    expect(src).toMatch(/openPaths: \['\/llms\.txt', '\/skill\.md'[,\]]/);
+    expect(src).toMatch(/openPaths: \[\s*'\/llms\.txt',\s*'\/skill\.md'/);
   });
 });
