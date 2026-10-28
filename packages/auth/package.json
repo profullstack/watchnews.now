@@ -8,8 +8,9 @@
     "./invites": "./src/invites.js"
   },
   "dependencies": {
+    "@profullstack/sealed-secrets": "0.1.0",
+    "@simplewebauthn/server": "^14.0.3",
     "@tipoff/config": "workspace:*",
-    "@tipoff/db": "workspace:*",
-    "@simplewebauthn/server": "^14.0.3"
+    "@tipoff/db": "workspace:*"
   }
 }
