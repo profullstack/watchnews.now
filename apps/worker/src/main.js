@@ -1,4 +1,5 @@
 import { watchDependencies } from '@profullstack/watchdog';
+import { startVaultOwnerSync } from '@tipoff/auth';
 import { config } from '@tipoff/config';
 /**
  * Workers on their own, for when one instance stops being enough.
@@ -25,6 +26,7 @@ import { startWorkers } from '@tipoff/queue/workers';
 configurePayments({ sql, coinpay: config.coinpay, siteUrl: config.siteUrl });
 
 await migrate();
+await startVaultOwnerSync();
 await installSchedules();
 const workers = startWorkers();
 

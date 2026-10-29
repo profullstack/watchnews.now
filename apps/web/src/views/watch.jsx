@@ -241,7 +241,9 @@ export const WatchIndex = ({
       in for somebody who wants a particular part of the world, alphabetical at both
       levels so nothing "wins".
     */}
-    {!q ? <ChannelList channels={sample} heading="On now" blurb="A few from around the world." /> : null}
+    {!q ? (
+      <ChannelList channels={sample} heading="On now" blurb="A few from around the world." />
+    ) : null}
 
     {index.length > 0 ? (
       <section class="channels regions">

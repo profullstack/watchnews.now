@@ -290,7 +290,9 @@ describe('matching an article to a stream', () => {
    */
   test('the public box on an article still keys on the outlet and the desk', async () => {
     const app = await read('../apps/web/src/app.js');
-    expect(app).toContain('channelsFor({ outlet: event.home_name, section: event.sport, limit: 6 })');
+    expect(app).toContain(
+      'channelsFor({ outlet: event.home_name, section: event.sport, limit: 6 })',
+    );
   });
 });
 
@@ -324,6 +326,6 @@ describe('the watch index is a browse page, not a dump', () => {
     expect(view).toContain('action="/watch"');
     expect(view).toContain('name="q"');
     const app = await read('../apps/web/src/app.js');
-    expect(app).toContain("pickChannels(all, { q, limit: 40 })");
+    expect(app).toContain('pickChannels(all, { q, limit: 40 })');
   });
 });
