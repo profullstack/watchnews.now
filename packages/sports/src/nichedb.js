@@ -459,7 +459,8 @@ const REGION = {
   Africa: 'BF BJ CD CI CM DZ EG ET GN KE LY MA NE NG SD SN TG ZA',
   Americas: 'AR BO BR BS BZ CA CL CO CR CU DO EC GT HN HT MX NI PA PE PR PY SV US VE',
   Asia: 'AF AM AZ BD CN GE HK ID IN JP KG KH KR KZ LA MM MN MO MV MY PH PK SG TH TW UZ VN',
-  Europe: 'AL BA BE BG BY CH CY CZ DE ES FI FR GR HR HU IE IS IT LT MC MD MK MT NL PL PT RO RU SE SK UA UK XK',
+  Europe:
+    'AL BA BE BG BY CH CY CZ DE ES FI FR GR HR HU IE IS IT LT MC MD MK MT NL PL PT RO RU SE SK UA UK XK',
   'Middle East': 'AE IL IQ IR JO KW LB OM PS QA SA SY TR YE',
   Oceania: 'AU',
 };
@@ -470,7 +471,8 @@ for (const [region, codes] of Object.entries(REGION)) {
 }
 
 /** Which region a channel's country belongs to. */
-export const regionOf = (country) => REGION_OF.get(String(country ?? '').toUpperCase()) ?? 'Elsewhere';
+export const regionOf = (country) =>
+  REGION_OF.get(String(country ?? '').toUpperCase()) ?? 'Elsewhere';
 
 /**
  * The browse index: every region, and every country inside it with a count.

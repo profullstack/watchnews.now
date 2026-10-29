@@ -7,7 +7,8 @@ const { isSeoAgent, robotsTxt, SEO_AGENTS } = await import('../apps/web/src/lib/
 const APP = new URL('../apps/web/src/app.js', import.meta.url).pathname;
 
 // The exact strings from the access log on 2026-10-19.
-const DATAFORSEO = 'Mozilla/5.0 (compatible; DataForSeoBot/1.0; +https://dataforseo.com/dataforseo-bot)';
+const DATAFORSEO =
+  'Mozilla/5.0 (compatible; DataForSeoBot/1.0; +https://dataforseo.com/dataforseo-bot)';
 const AHREFS = 'Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)';
 const GOOGLEBOT = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
 const PETAL =
