@@ -17,8 +17,15 @@ import { raw } from 'hono/html';
 
 const options = {
   site: `https://${brand.domain}/`,
-  // No links: the site footer above carries them.
-  links: [],
+  links: [
+    { label: brand.words.browse, href: href.category() },
+    { label: 'About', href: '/about' },
+    { label: 'RSS & calendars', href: '/feeds' },
+    { label: 'API', href: '/api/v1' },
+    { label: 'Contact', href: '/contact' },
+    { label: 'Privacy', href: '/privacy' },
+    { label: 'Terms', href: '/terms' },
+  ],
 };
 
 const styleOf = (html) => /<style>([\s\S]*?)<\/style>/.exec(html)?.[1] ?? '';

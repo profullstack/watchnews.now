@@ -290,14 +290,10 @@ export const Layout = (props) => {
 
         <main id="main">{props.children}</main>
 
-        <footer>
+        <aside class="site-notes" aria-label="About this directory">
           <p>
             {brand.name} is free; times are in your own time zone (
-            <span data-tz-label>your device</span>) ·{' '}
-            <a href={href.category()}>{brand.words.browse}</a> · <a href="/about">About</a> ·{' '}
-            <a href="/feeds">RSS &amp; calendars</a> · <a href="/api/v1">API</a> ·{' '}
-            <a href="/contact">Contact</a> · <a href="/privacy">Privacy</a> ·{' '}
-            <a href="/terms">Terms</a>
+            <span data-tz-label>your device</span>).
           </p>
           {/* Where the rows actually came from, per brand (a credit that names the
             wrong upstream is worse than none), then the sibling sites: named on
@@ -325,7 +321,7 @@ export const Layout = (props) => {
             ))}
             {' · '}Data furnished by <a href={dataSource.url}>{dataSource.name}</a>
           </p>
-        </footer>
+        </aside>
         {/* Copyright and the Profullstack webring: lib/pfs-footer.js. */}
         <PfsFooter />
 
