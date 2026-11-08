@@ -397,7 +397,7 @@ const BRANDS = {
         { name: 'the newsrooms’ own feeds', url: 'https://nichedb.dev/c/news' },
         { name: 'GDELT', url: 'https://www.gdeltproject.org' },
         { name: 'an open newsroom directory', url: 'https://rssamplifier.com/news' },
-        { name: 'the independent web', url: 'https://brisk.news' },
+        { name: 'the independent web', url: 'https://brisk.pwa.pit.world' },
       ],
       note:
         'Collected by nichedb.dev, which reads all four. ' + 'Not affiliated with any publisher.',
