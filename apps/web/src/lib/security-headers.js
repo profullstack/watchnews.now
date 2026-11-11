@@ -30,7 +30,8 @@
 export const buildPolicy = () =>
   [
     "default-src 'self'",
-    "script-src 'self' https://crawlproof.com",
+    // @profullstack/webmcp embed (WebMCP tools for in-browser AI agents) from jsDelivr.
+    "script-src 'self' https://crawlproof.com https://cdn.jsdelivr.net",
     "style-src 'self' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     /*
